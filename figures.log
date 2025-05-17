@@ -1,0 +1,39 @@
+---------------------------------------------------------------------------------------------------------------------
+      name:  <unnamed>
+       log:  C:\Data\Expect\WE\Revision_final\ForPublication\figures.log
+  log type:  text
+ opened on:  25 Apr 2016, 13:22:58
+
+. /***************************************************************************************************/
+. 
+. /*Commands for graphs*/
+. 
+. u WE_Data0                      
+
+. /*The data set contains the household identifier and the response to the first question on stock price expectations
+>  from the SHIW for 2008*/
+. 
+. lab var probors1 "% chance of stock market gain"
+
+. histogram probors1, xlabel(0(10)100) graphregion(fcolor(gs16)) bcolor(black) bin(35)
+(bin=35, start=0, width=2.8571429)
+
+. 
+. clear
+
+. 
+. u for_figure2   
+
+. /*Data from Yahoo Finance on the Italian FTSE MIB for 2008-2010*/
+. 
+. histogram  var3 if year>2007 & year<2011, kdensity normal xlabel(-.70(.20).7) graphregion(fcolor(gs16)) bcolor(blac
+> k) bin(30)
+(bin=30, start=-.57130003, width=.04363333)
+
+. 
+. log c
+      name:  <unnamed>
+       log:  C:\Data\Expect\WE\Revision_final\ForPublication\figures.log
+  log type:  text
+ closed on:  25 Apr 2016, 13:23:02
+---------------------------------------------------------------------------------------------------------------------

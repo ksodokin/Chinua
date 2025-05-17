@@ -1,0 +1,3981 @@
+---------------------------------------------------------------------------------------------------------------------
+      name:  <unnamed>
+       log:  C:\Data\Expect\WE\Revision_final\ForPublication\tableres5.log
+  log type:  text
+ opened on:  25 Apr 2016, 14:41:40
+
+. 
+. #delimit;
+delimiter now ;
+. u WE_Data1;
+
+. replace mu_R=mu_R-1;
+(1734 real changes made)
+
+.                         /*Net returns because the instruments are net returns*/
+> replace mu_rbnd=mu_rbnd-1;
+(1225 real changes made)
+
+. replace mu_rf=mu_rf-1;
+(1225 real changes made)
+
+. /*Drop ouliers (1%)*/
+> replace mu_R=. if mu_R<=-0.75 /*| mu_R>.15*/;
+(31 real changes made, 31 to missing)
+
+. replace mu_rf=. if mu_rf<=-0.04 /*| mu_rf>=0.044*/;
+(23 real changes made, 23 to missing)
+
+. replace mu_rbnd=. if mu_rbnd<=0 | mu_rbnd>=0.10;
+(21 real changes made, 21 to missing)
+
+. gen Dexp1=mu_R!=.;
+
+.  replace Dexp1=. if anno==2010;
+(7951 real changes made, 7951 to missing)
+
+. gen Dexp2=mu_rf!=.;
+
+.  replace Dexp2=. if anno==2010;
+(7951 real changes made, 7951 to missing)
+
+. /********** COMPUTE REALIZATIONS: R10(1+R09)+R9 **********/
+> 
+> gen RR  = FTSE2010/100   *(1+FTSE2009/100)   +FTSE2009/100;
+(7951 missing values generated)
+
+. gen Rbnd= gbnds2010/100  *(1+gbnds2009/100)  +gbnds2009/100;
+(7951 missing values generated)
+
+. gen Rrf = bankdep2010/100*(1+bankdep2009/100)+bankdep2009/100;
+(7951 missing values generated)
+
+. /*For realized housing returns, I take 2010 SHIW prov/com avg changes in valabit/supab (over previous 2 yrs)*/
+> ren rH_prov rH_prov2;
+
+.  lab var rH_prov2 "Avg biennial (2009, 2010) return on housing, by iprov";
+
+. gen rH_prov=sqrt(rH_prov2+1)-1;
+(7951 missing values generated)
+
+. /******NOTA BENE che il rendimento e' il rendimento medio sul biennio/anno precedente!!!*/ 
+> 
+> gen RH = rH_prov*(1+rH_prov)+rH_prov;
+(7951 missing values generated)
+
+. /**********************************************************/
+> 
+> keep nq anno cn /*
+> */ mu_H sex yrsedu whiteco eta A52-A55 com2-com4 Dnperc lit risfin risf2 Daf3 /*
+> */ p_prov p_prov2 p_com2-p_com4 p_A5* impacq* manstra anposs anposq Danposs piubagni /*
+> */ hprices06 hpr_sq sport04 high_grw trib_inef va2 avgva rotaz x_cas /*
+> */ lowcomp verored klima Dexp* /*
+> */ mu_R FTSEm_l1-FTSEm_l6 x_bor FTSEmo* /*
+> */ mu_rf bank_l1-bank_l6 x_int bankdep* /*
+> */ mu_rbnd bonds_l1-bonds_l6 bonds* /*
+> */ af af1-af3 ar ar1-ar3 R* sig*/*
+> */ ncomp nperc np2 married employed pubblico self small Dpf lc;
+
+. sort nq anno;
+
+.  save databoot,replace;
+file databoot.dta saved
+
+. /***/
+> 
+> #delimit cr
+delimiter now cr
+. 
+. capture program drop weeffect
+
+.     program define weeffect
+  1.             version 7.0
+  2. 
+.                         /******FIT H*****/
+.                         qui heckman mu_H sex yrsedu whiteco eta A52-A55 com2-com4 Dnperc lit risfin risf2 Daf3 /*
+>                         */ p_prov p_prov2 p_com2-p_com4 p_A5* impacq* manstra anposs anposq Danposs piubagni /*
+>                         */ hprices06 hpr_sq sport04 high_grw trib_inef va2 avgva if rotaz==1 & x_cas==0, /*
+>                         */ select(lowcomp verored klima Dexp sex sex yrsedu whiteco eta A52-A55 com2-com4 Dnperc li
+> t risfin risf2 Daf3 /*
+>                         */ p_prov p_prov2 p_com2-p_com4 p_A5* impacq* manstra anposs anposq Danposs piubagni /*
+>                         */ hprices06 hpr_sq sport04 high_grw trib_inef va2 avgva) nolog twostep 
+  3. 
+.                         predict mu_Hh_heck                      /*Valabit is missing for a handful of households*/
+  4.                                                                                 /*1ST FITTED REGRESSOR*/
+. 
+.                         sort nq anno
+  5.                         qui by nq: gen mu_H10=mu_H[_n+1]
+  6.                         lab var mu_H10 "Expected return on housing in 2010 (for those in the panel)"
+  7.                                 
+.                         /******FIT FTSE*****/
+.                         gen x1=FTSEm_l1
+  8.                         gen x2=FTSEm_l2
+  9.                         gen x3=FTSEm_l3
+ 10.                         gen x4=FTSEm_l4
+ 11.                         gen x5=FTSEm_l5
+ 12.                         gen x6=FTSEm_l6
+ 13. 
+.                         qui heckman mu_R sex yrsedu whiteco eta A52-A55 com2-com4 Dnperc lit risfin risf2 Daf3 /*
+>                         */ FTSEm_l1 FTSEm_l2 FTSEm_l3 FTSEm_l4 FTSEm_l5 FTSEm_l6 hprices06 hpr_ sport04 /*
+>                         */ trib_inef high_grw va2 avgva if x_bor==0, /*
+>                         */ select(lowcomp verored klima Dexp2 sex yrsedu whiteco eta A52-A55 com2-com4 lit Dnperc r
+> isfin risf2/*
+>                         */ Daf3 FTSEm_l1 FTSEm_l2 FTSEm_l3 FTSEm_l4 FTSEm_l5 FTSEm_l6 hprices06 hpr_ sport04 /*
+>                         */ trib_inef high_grw va2 avgva) nolog twostep
+ 14. 
+.                         replace FTSEm_l1=FTSEmo12
+ 15.                         replace FTSEm_l2=FTSEmo11
+ 16.                         replace FTSEm_l3=FTSEmo10 
+ 17.                         replace FTSEm_l4=FTSEmo9
+ 18.                         replace FTSEm_l5=FTSEmo8
+ 19.                         replace FTSEm_l6=FTSEmo7
+ 20.                         predict mu_Rh_heck if x_bor==0  /*2ND FITTED REGRESSOR*/
+ 21. 
+.                         replace FTSEm_l1=x1
+ 22.                         replace FTSEm_l2=x2
+ 23.                         replace FTSEm_l3=x3 
+ 24.                         replace FTSEm_l4=x4
+ 25.                         replace FTSEm_l5=x5
+ 26.                         replace FTSEm_l6=x6
+ 27.                         drop x1-x6
+ 28. 
+.                         /******FIT Bank deposits*****/
+.                         gen x1=bank_l1
+ 29.                         gen x2=bank_l2
+ 30.                         gen x3=bank_l3
+ 31.                         gen x4=bank_l4
+ 32.                         gen x5=bank_l5
+ 33.                         gen x6=bank_l6
+ 34. 
+.                         qui heckman mu_rf sex yrsedu whiteco eta A52-A55 com2-com4 Dnperc lit risfin risf2 Daf3 /*
+>                         */ bank_l1 bank_l2 bank_l3 bank_l4 bank_l5 bank_l6 hprices06 hpr_ sport04 /*
+>                         */ trib_inef high_grw va2 avgva if x_int==0, /*
+>                         */ select(lowcomp verored klima Dexp1 sex yrsedu whiteco eta A52-A55 com2-com4 Dnperc lit r
+> isfin risf2/*
+>                         */ Daf3 bank_l1 bank_l2 bank_l3 bank_l4 bank_l5 bank_l6 hprices06 hpr_ sport04 /*
+>                         */ trib_inef high_grw va2 avgva) nolog twostep
+ 35. 
+.                         replace bank_l1=bankdep12
+ 36.                         replace bank_l2=bankdep11
+ 37.                         replace bank_l3=bankdep10 
+ 38.                         replace bank_l4=bankdep9
+ 39.                         replace bank_l5=bankdep8
+ 40.                         replace bank_l6=bankdep7
+ 41.                         predict mu_rfh_heck if x_int==0         /*3RD FITTED REGRESSOR*/
+ 42. 
+.                         replace bank_l1=x1
+ 43.                         replace bank_l2=x2
+ 44.                         replace bank_l3=x3 
+ 45.                         replace bank_l4=x4
+ 46.                         replace bank_l5=x5
+ 47.                         replace bank_l6=x6
+ 48.                         drop x1-x6
+ 49.                         
+.                         /******FIT Government bonds*****/
+.                         gen x1=bonds_l1
+ 50.                         gen x2=bonds_l2
+ 51.                         gen x3=bonds_l3
+ 52.                         gen x4=bonds_l4
+ 53.                         gen x5=bonds_l5
+ 54.                         gen x6=bonds_l6
+ 55. 
+.                         qui heckman mu_rbnd sex yrsedu whiteco eta A52-A55 com2-com4 Dnperc lit risfin risf2 Daf3 /
+> *
+>                         */ bonds_l1 bonds_l2 bonds_l3 bonds_l4 bonds_l5 bonds_l6 hprices06 hpr_ sport04 /*
+>                         */ trib_inef high_grw va2 avgva if x_int==0, /*
+>                         */ select(lowcomp verored klima Dexp1 sex yrsedu whiteco eta A52-A55 com2-com4 Dnperc lit r
+> isfin risf2/*
+>                         */ Daf3 bonds_l1 bonds_l2 bonds_l3 bonds_l4 bonds_l5 bonds_l6 hprices06 hpr_ sport04 /*
+>                         */ trib_inef high_grw va2 avgva) nolog twostep
+ 56. 
+.                         replace bonds_l1=bonds12
+ 57.                         replace bonds_l2=bonds11
+ 58.                         replace bonds_l3=bonds10 
+ 59.                         replace bonds_l4=bonds9
+ 60.                         replace bonds_l5=bonds8
+ 61.                         replace bonds_l6=bonds7
+ 62.                         predict mu_rbndh_heck if x_int==0       /*4TH FITTED REGRESSOR*/
+ 63. 
+.                         replace bonds_l1=x1
+ 64.                         replace bonds_l2=x2
+ 65.                         replace bonds_l3=x3 
+ 66.                         replace bonds_l4=x4
+ 67.                         replace bonds_l5=x5
+ 68.                         replace bonds_l6=x6
+ 69.                         drop x1-x6
+ 70.                         
+.                         /**************************************************************************************/
+. 
+.                         /********** COMPUTE (1+rho)E08(R09) (expectation)**********/
+.                         #delimit;
+delimiter now ;
+.                         gen exp_R  =(1+0.4558194)*mu_R;
+ 71.                         gen exp_Rhk=(1+0.4558194)*mu_Rh_heck;
+ 72.                         gen exp_bnd  =(1+0.7531304)*mu_rbnd;
+ 73.                         gen exp_bndhk=(1+0.7531304)*mu_rbndh_heck;
+ 74.                         gen exp_rf  =(1+0.739289)*mu_rf;
+ 75.                         gen exp_rfhk=(1+0.739289)*mu_rfh_heck;
+ 76.                         gen exp_Hhk=2*mu_Hh_heck;
+ 77.                         /********NOW CONSTRUCT the regressors**********************/
+>                         /*... unexpected shocks...*/
+>                         gen unexp_af1  =af1*(Rrf-exp_rf);
+ 78.                         gen unexp_af1hk=af1*(Rrf-exp_rfhk);
+ 79.                         gen unexp_af2  =af2*(Rbnd-exp_bnd);
+ 80.                 /*Many zeros for non-holders!*/
+>                         gen unexp_af2hk=af2*(Rbnd-exp_bndhk);
+ 81.                         gen unexp_af3  =af3*(RR-exp_R);
+ 82.                         gen unexp_af3hk=af3*(RR-exp_Rhk);
+ 83.                         gen unexp_ar1hk=ar1*(RH-exp_Hhk);
+ 84.                         gen unexp_ar2  =ar2*(RR-exp_R);
+ 85.                         gen unexp_ar2hk=ar2*(RR-exp_Rhk);
+ 86.                         gen unexp_af  =unexp_af1+unexp_af2+unexp_af3;
+ 87.                         gen unexp_ar  =unexp_ar1hk+unexp_ar2;
+ 88.                         gen unexp_afar=unexp_af+unexp_ar;
+ 89.                         gen unexp_afhk=unexp_af1hk+unexp_af2hk+unexp_af3hk;
+ 90.                         gen unexp_arhk=unexp_ar1hk+unexp_ar2hk;
+ 91.                         gen unexp_afarhk=unexp_afhk+unexp_arhk;
+ 92.                         gen unexp_af12  = unexp_af1  +unexp_af2;
+ 93.                         gen unexp_af12hk= unexp_af1hk+unexp_af2hk;
+ 94.                         gen unexp_af3ar2  = unexp_af3  +unexp_ar2;
+ 95.                         gen unexp_af3ar2hk= unexp_af3hk+unexp_ar2hk;
+ 96.                         /* ... and anticipated changes */
+>                         gen exp_af1  =af1*exp_rf;
+ 97.                         gen exp_af1hk=af1*exp_rfhk;
+ 98.                         gen exp_af2  =af2*exp_bnd;
+ 99.                         gen exp_af2hk=af2*exp_bndhk;
+100.                         gen exp_af3  =af3*exp_R;
+101.                         gen exp_af3hk=af3*exp_Rhk;
+102.                         gen exp_ar1hk=ar1*exp_Hhk;
+103.                         gen exp_ar2  =ar2*exp_R;
+104.                         gen exp_ar2hk=ar2*exp_Rhk;
+105.                         gen exp_af  =exp_af1+exp_af2+exp_af3;
+106.                         gen exp_ar  =exp_ar1hk+exp_ar2;
+107.                         gen exp_afar=exp_af+exp_ar;
+108.                         gen exp_afhk=exp_af1hk+exp_af2hk+exp_af3hk;
+109.                         gen exp_arhk=exp_ar1hk+exp_ar2hk;
+110.                         gen exp_afarhk=exp_afhk+exp_arhk;
+111.                         gen exp_af12 =exp_af1 +exp_af2;
+112.                         gen exp_af12hk=exp_af1hk+exp_af2hk;
+113.                         gen exp_af3ar2  = exp_af3  +exp_ar2;
+114.                         gen exp_af3ar2hk= exp_af3hk+exp_ar2hk;
+115.                         gen afar=af+ar;
+116.                                                 /*2008-2010 panel*/
+>                         drop if (eta<20 | eta>80) & anno==2008;
+117.                         sort nq anno;
+118.  qui by nq: gen N=_N;
+119.  keep if N==2;
+120.  drop N;
+121.                         sort nq anno;
+122.                         qui by nq: gen delta_cn=(cn[_n+1]-cn)/1000;
+123.                         qui by nq: gen cngrw =(cn[_n+1]-cn)/cn;
+124.                         drop if cngrw<-0.5 | (cngrw>2 & cngrw!=.);
+125.  drop cngrw;
+126.                                                 sort nq anno;
+127.  qui by nq: gen N=_N;
+128.  keep if N==2;
+129.  drop N;
+130.                         /*NEW TABLE 5*/
+>                         
+>                         /************************************************************************/
+>                         /****               WEALTH REGRESSIONS AND LC (TABLE 5)              ****/
+>                         /************************************************************************/
+>                         #delimit cr
+delimiter now cr
+. 
+.                         /*REGRESSIONS WITH EXPECTATIONS (Sample of respondents)*/
+.                         
+.                         
+.                         reg delta_cn unexp_afar exp_afar eta yrsedu* sex ncomp nperc np2 married employed pubblico 
+> self A52-A55 small Dpf /*
+>                         */ if afar>0 & mu_R!=. & mu_rf!=. & afar<2000, r
+131.                         gen respondent=e(sample)
+132.                         replace respondent=. if anno==2010
+133.                         
+.                         gen interLC1=exp_af*lc
+134.                         gen interLC2=exp_ar*lc
+135.                         
+.                         gen posexp1=exp_af>0
+136.                         gen posexp2=exp_ar>0
+137.                         gen inter11=exp_af*posexp1
+138.                         gen inter12=exp_af*(1-posexp1)
+139.                         gen inter21=exp_ar*posexp2
+140.                         gen inter22=exp_ar*(1-posexp2)
+141.                         gen interun11=unexp_af*posexp1
+142.                         gen interun12=unexp_af*(1-posexp1)
+143.                         gen interun21=unexp_ar*posexp2
+144.                         gen interun22=unexp_ar*(1-posexp2)
+145. 
+.                         
+.                         /*ONE: af, ar*/
+.                         reg delta_cn unexp_af unexp_ar exp_af exp_ar interLC* lc eta yrsedu* sex ncomp nperc np2 ma
+> rried employed pubblico self A52-A55 small Dpf /*
+>                         */ if afar>0 & mu_R!=. & mu_rf!=. & afar<2000, r
+146.                         outreg using tb_LC, se starloc(1) starlevel (10 5 1) replace /*
+>                         */ keep(unexp_af unexp_ar exp_af exp_ar interLC* lc)
+147.                         
+.                         scalar def reg1=_b[unexp_af]
+148.                         scalar def reg2=_b[unexp_ar]
+149.                         scalar def reg3=_b[exp_af]
+150.                         scalar def reg4=_b[exp_ar]
+151.                         scalar def reg5=_b[interLC1]
+152.                         cap scalar def reg6=_b[interLC2]
+153.                         scalar def reg7=_b[lc]
+154.                         
+.                         
+.                         /*TWO: af, ar - posivite and negative + inter*exp*/
+.                         reg delta_cn unexp_af unexp_ar inter1* inter2* eta yrsedu* sex ncomp nperc np2 married empl
+> oyed pubblico self A52-A55 small Dpf /*
+>                         */ if afar>0 & mu_R!=. & mu_rf!=. & afar<2000, r
+155.                         outreg using tb_LC, se starloc(1) starlevel (10 5 1) merge /*
+>                         */ keep(unexp_af unexp_ar inter1* inter2*)
+156.                         
+.                         scalar def reg8=_b[unexp_af]
+157.                         scalar def reg9=_b[unexp_ar]
+158.                         scalar def reg10=_b[inter11]
+159.                         scalar def reg11=_b[inter12]
+160.                         scalar def reg12=_b[inter21]
+161.                         scalar def reg13=_b[inter22]
+162.                         
+.                         /*THREE: af, ar - posivite and negative  + inter*exp + inter*unexp*/
+.                         reg delta_cn inter1* inter2* interun1* interun2* eta yrsedu* sex ncomp nperc np2 married em
+> ployed pubblico self A52-A55 small Dpf /*
+>                         */ if afar>0 & mu_R!=. & mu_rf!=. & afar<2000, r
+163.                         outreg using tb_LC, se starloc(1) starlevel (10 5 1) merge /*
+>                         */ keep(inter1* inter2* interun*)
+164.                         
+.                         scalar def reg14=_b[inter11]
+165.                         scalar def reg15=_b[inter12]
+166.                         scalar def reg16=_b[inter21]
+167.                         scalar def reg17=_b[inter22]
+168.                         scalar def reg18=_b[interun11]
+169.                         scalar def reg19=_b[interun12]
+170.                         scalar def reg20=_b[interun21]
+171.                         scalar def reg21=_b[interun22]
+172.                                                 
+.                 /*FOUR: af, ar, selection*/
+.                         /*THIS IS THE REGRESSION THAT USES ONLY RESPONDENTS BUT CORRECTS FOR SELECTION INTO THAT SA
+> MPLE*/
+.                         heckman delta_cn unexp_af unexp_ar exp_af exp_ar interLC* lc eta yrsedu* sex ncomp nperc np
+> 2 married employed pubblico self A52-A55 small Dpf, ///
+>                         select(respondent=/*unexp_afar exp_afar*/ lc eta yrsedu* sex ncomp nperc np2 married employ
+> ed pubblico self A52-A55 small Dpf ///
+>                         lowcomp verored klima) two
+173.                         outreg using tb_LC, se starloc(1) starlevel (10 5 1) merge /*
+>                         */ keep(unexp_af unexp_ar exp_af exp_ar interLC* lc)
+174.                         
+.                         scalar def reg22=_b[unexp_af]
+175.                         scalar def reg23=_b[unexp_ar]
+176.                         scalar def reg24=_b[exp_af]
+177.                         scalar def reg25=_b[exp_ar]
+178.                         scalar def reg26=_b[interLC1]
+179.                         scalar def reg27=_b[interLC2]
+180.                         scalar def reg28=_b[lc]
+181.                         
+.                         /*FIVE: af, ar, positive - negative, selection*/
+.                         heckman delta_cn unexp_af unexp_ar inter1* inter2* eta yrsedu* sex ncomp nperc np2 married 
+> employed pubblico self A52-A55 small Dpf, ///
+>                         select(respondent=/*unexp_afar exp_afar*/ eta yrsedu* sex ncomp nperc np2 married employed 
+> pubblico self A52-A55 small Dpf ///
+>                         lowcomp verored klima) two
+182.                         outreg using tb_LC, se starloc(1) starlevel (10 5 1) merge /*
+>                         */ keep(unexp_af unexp_ar inter1* inter2*)
+183.                         
+.                         scalar def reg29=_b[unexp_af]
+184.                         scalar def reg30=_b[unexp_ar]
+185.                         scalar def reg31=_b[inter11]
+186.                         scalar def reg32=_b[inter12]
+187.                         scalar def reg33=_b[inter21]
+188.                         scalar def reg34=_b[inter22]
+189.                         
+.                         /*SIX: af, ar, positive - negative, selection*/
+.                         heckman delta_cn inter1* inter2* interun1* interun2* eta yrsedu* sex ncomp nperc np2 marrie
+> d employed pubblico self A52-A55 small Dpf, ///
+>                         select(respondent= eta yrsedu* sex ncomp nperc np2 married employed pubblico self A52-A55 s
+> mall Dpf ///
+>                         lowcomp verored klima) two
+190.                         outreg using tb_LC, se starloc(1) starlevel (10 5 1) merge /*
+>                         */ keep(inter1* inter2* interun*)
+191.                         
+.                         scalar def reg35=_b[inter11]
+192.                         scalar def reg36=_b[inter12]
+193.                         scalar def reg37=_b[inter21]
+194.                         scalar def reg38=_b[inter22]
+195.                         scalar def reg39=_b[interun11]
+196.                         scalar def reg40=_b[interun12]
+197.                         scalar def reg41=_b[interun21]
+198.                         scalar def reg42=_b[interun22]
+199.                 
+. end
+
+. 
+. 
+. set seed 171202
+
+.         u databoot,clear
+
+.         bsample
+
+.         *bsample, cluster(nquest) id(id) strata(panel)          /*HERE... WHAT?*/
+. 
+.         /*qui*/ weeffect                /*Run the estimation program*/
+(option xb assumed; fitted values)
+(8047 missing values generated)
+(8047 missing values generated)
+(8047 missing values generated)
+(8047 missing values generated)
+(8047 missing values generated)
+(8047 missing values generated)
+(6305 real changes made)
+(6305 real changes made)
+(6305 real changes made)
+(6305 real changes made)
+(6305 real changes made)
+(6305 real changes made)
+(option xb assumed; fitted values)
+(8553 missing values generated)
+(6305 real changes made)
+(6305 real changes made)
+(6305 real changes made)
+(6305 real changes made)
+(6305 real changes made)
+(6305 real changes made)
+(8047 missing values generated)
+(8047 missing values generated)
+(8047 missing values generated)
+(8047 missing values generated)
+(8047 missing values generated)
+(8047 missing values generated)
+(6305 real changes made)
+(6305 real changes made)
+(6305 real changes made)
+(6305 real changes made)
+(6305 real changes made)
+(5484 real changes made)
+(option xb assumed; fitted values)
+(9241 missing values generated)
+(6305 real changes made)
+(6305 real changes made)
+(6305 real changes made)
+(6305 real changes made)
+(6305 real changes made)
+(5484 real changes made)
+(14352 real changes made)
+(14352 real changes made)
+(14352 real changes made)
+(14352 real changes made)
+(14352 real changes made)
+(14352 real changes made)
+(option xb assumed; fitted values)
+(9241 missing values generated)
+(14352 real changes made)
+(14352 real changes made)
+(14352 real changes made)
+(14352 real changes made)
+(14352 real changes made)
+(14352 real changes made)
+(14209 missing values generated)
+(8553 missing values generated)
+(14676 missing values generated)
+(9241 missing values generated)
+(14680 missing values generated)
+(9241 missing values generated)
+(14680 missing values generated)
+(9241 missing values generated)
+(14676 missing values generated)
+(9241 missing values generated)
+(14209 missing values generated)
+(8553 missing values generated)
+(8047 missing values generated)
+(14209 missing values generated)
+(8553 missing values generated)
+(15177 missing values generated)
+(14209 missing values generated)
+(15177 missing values generated)
+(9534 missing values generated)
+(8553 missing values generated)
+(9534 missing values generated)
+(14680 missing values generated)
+(9241 missing values generated)
+(14209 missing values generated)
+(8553 missing values generated)
+(14680 missing values generated)
+(9241 missing values generated)
+(14676 missing values generated)
+(9241 missing values generated)
+(14209 missing values generated)
+(8553 missing values generated)
+(14209 missing values generated)
+(8553 missing values generated)
+(15177 missing values generated)
+(14209 missing values generated)
+(15177 missing values generated)
+(9534 missing values generated)
+(8553 missing values generated)
+(9534 missing values generated)
+(14680 missing values generated)
+(9241 missing values generated)
+(14209 missing values generated)
+(8553 missing values generated)
+(626 observations deleted)
+(10494 observations deleted)
+(6 observations deleted)
+(6 observations deleted)
+
+Linear regression                                      Number of obs =     140
+                                                       F( 17,   121) =       .
+                                                       Prob > F      =       .
+                                                       R-squared     =  0.2155
+                                                       Root MSE      =  4.1739
+
+------------------------------------------------------------------------------
+             |               Robust
+    delta_cn |      Coef.   Std. Err.      t    P>|t|     [95% Conf. Interval]
+-------------+----------------------------------------------------------------
+  unexp_afar |   .0243679   .0162333     1.50   0.136    -.0077702    .0565059
+    exp_afar |    .038974   .0162698     2.40   0.018     .0067636    .0711844
+         eta |    .030618   .0429105     0.71   0.477    -.0543347    .1155707
+      yrsedu |   13.00674   8.807795     1.48   0.142    -4.430609     30.4441
+         sex |   .1136492   .8404434     0.14   0.893     -1.55023    1.777529
+       ncomp |   .9629917   .4492894     2.14   0.034     .0735049    1.852479
+       nperc |   3.238149   3.316172     0.98   0.331    -3.327088    9.803385
+         np2 |  -.9928743   .7861743    -1.26   0.209    -2.549314    .5635651
+     married |  -.8171642   1.525674    -0.54   0.593    -3.837638     2.20331
+    employed |   .6586974   1.143902     0.58   0.566    -1.605959    2.923354
+    pubblico |  -.1707215   1.021602    -0.17   0.868    -2.193252    1.851809
+     selfemp |   2.493366   2.238737     1.11   0.268    -1.938804    6.925535
+         A52 |   .0552804   .9690161     0.06   0.955    -1.863143    1.973703
+         A53 |   .4738364   1.036781     0.46   0.648    -1.578745    2.526418
+         A54 |   .5438097   1.544833     0.35   0.725    -2.514595    3.602214
+         A55 |  -.4167874   1.002958    -0.42   0.678    -2.402408    1.568833
+       small |   .3312646   .7634384     0.43   0.665    -1.180163    1.842692
+         Dpf |   -.128713   .7144975    -0.18   0.857    -1.543249    1.285823
+       _cons |   -7.94131   4.360899    -1.82   0.071    -16.57486    .6922409
+------------------------------------------------------------------------------
+(2585 real changes made, 2585 to missing)
+(4573 missing values generated)
+(4290 missing values generated)
+(4573 missing values generated)
+(4573 missing values generated)
+(4290 missing values generated)
+(4290 missing values generated)
+(4573 missing values generated)
+(4573 missing values generated)
+(4290 missing values generated)
+(4290 missing values generated)
+
+Linear regression                                      Number of obs =     140
+                                                       F( 22,   116) =       .
+                                                       Prob > F      =       .
+                                                       R-squared     =  0.2277
+                                                       Root MSE      =  4.2297
+
+------------------------------------------------------------------------------
+             |               Robust
+    delta_cn |      Coef.   Std. Err.      t    P>|t|     [95% Conf. Interval]
+-------------+----------------------------------------------------------------
+    unexp_af |  -.2526116   .3496878    -0.72   0.472    -.9452122    .4399891
+    unexp_ar |   .0216987   .0166036     1.31   0.194    -.0111869    .0545842
+      exp_af |  -.1418616   .3311561    -0.43   0.669    -.7977579    .5140348
+      exp_ar |     .03757   .0160203     2.35   0.021     .0058398    .0693003
+    interLC1 |   .4164942   1.006229     0.41   0.680     -1.57647    2.409459
+    interLC2 |   -.034677   .0301548    -1.15   0.253    -.0944024    .0250484
+          lc |   1.454178   1.382191     1.05   0.295    -1.283425    4.191781
+         eta |   .0326095    .043986     0.74   0.460    -.0545103    .1197293
+      yrsedu |   12.93852    9.19995     1.41   0.162    -5.283141    31.16018
+         sex |   .2495856   .8832502     0.28   0.778    -1.499803    1.998974
+       ncomp |   .9906297   .4711182     2.10   0.038     .0575208    1.923739
+       nperc |   3.126994   3.398065     0.92   0.359    -3.603303     9.85729
+         np2 |  -.9313969   .7934107    -1.17   0.243    -2.502847    .6400529
+     married |  -.9280752   1.576711    -0.59   0.557    -4.050949    2.194799
+    employed |   .5314418   1.137864     0.47   0.641    -1.722241    2.785124
+    pubblico |  -.1537341   1.071253    -0.14   0.886    -2.275485    1.968017
+     selfemp |   2.394534    2.28715     1.05   0.297    -2.135455    6.924524
+         A52 |   .2883098   .9835624     0.29   0.770    -1.659759    2.236379
+         A53 |   .6663598   1.083439     0.62   0.540    -1.479529    2.812248
+         A54 |   .3200054   1.718452     0.19   0.853    -3.083605    3.723615
+         A55 |  -.4854692   1.064747    -0.46   0.649    -2.594335    1.623396
+       small |   .4635944   .8093056     0.57   0.568    -1.139337    2.066526
+         Dpf |  -.3127496   .7282979    -0.43   0.668    -1.755235    1.129736
+       _cons |   -8.02709   4.440822    -1.81   0.073     -16.8227    .7685186
+------------------------------------------------------------------------------
+
+                                               ----------------------
+                                                           delta_cn 
+                                               ----------------------
+                                                unexp_af    -0.253  
+                                                           (0.350)  
+                                                unexp_ar    0.022   
+                                                           (0.017)  
+                                                exp_af      -0.142  
+                                                           (0.331)  
+                                                exp_ar     0.038**  
+                                                           (0.016)  
+                                                interLC1    0.416   
+                                                           (1.006)  
+                                                interLC2    -0.035  
+                                                           (0.030)  
+                                                lc          1.454   
+                                                           (1.382)  
+                                                R2           0.23   
+                                                N            140    
+                                               ----------------------
+                                           * p<0.1; ** p<0.05; *** p<0.01
+
+
+Linear regression                                      Number of obs =     140
+                                                       F( 21,   117) =       .
+                                                       Prob > F      =       .
+                                                       R-squared     =  0.2337
+                                                       Root MSE      =  4.1952
+
+------------------------------------------------------------------------------
+             |               Robust
+    delta_cn |      Coef.   Std. Err.      t    P>|t|     [95% Conf. Interval]
+-------------+----------------------------------------------------------------
+    unexp_af |   .1597788   .4265134     0.37   0.709    -.6849086    1.004466
+    unexp_ar |    .020514   .0163164     1.26   0.211    -.0117997    .0528277
+     inter11 |   .0935867   .3361257     0.28   0.781    -.5720927    .7592661
+     inter12 |   .3325302   .4369463     0.76   0.448    -.5328191    1.197879
+     inter21 |   .0375155   .0161933     2.32   0.022     .0054455    .0695855
+     inter22 |   .0483572   .0620677     0.78   0.437    -.0745647     .171279
+         eta |   .0222907   .0435834     0.51   0.610     -.064024    .1086054
+      yrsedu |   13.83983   9.339161     1.48   0.141     -4.65589    32.33555
+         sex |   .2145093   .8512564     0.25   0.801    -1.471359    1.900378
+       ncomp |   .9164885   .4587934     2.00   0.048     .0078722    1.825105
+       nperc |   2.703331   3.336004     0.81   0.419    -3.903451    9.310112
+         np2 |   -.819859   .7804908    -1.05   0.296     -2.36558    .7258622
+     married |  -.6774169   1.524468    -0.44   0.658    -3.696545    2.341712
+    employed |   .4202107   1.137464     0.37   0.712    -1.832478    2.672899
+    pubblico |  -.0550846   1.054815    -0.05   0.958     -2.14409     2.03392
+     selfemp |   2.303391   2.358844     0.98   0.331    -2.368175    6.974958
+         A52 |   .5422339   .9931958     0.55   0.586    -1.424738    2.509206
+         A53 |   .6212428   1.062308     0.58   0.560    -1.482603    2.725089
+         A54 |   .6778403   1.577702     0.43   0.668    -2.446716    3.802397
+         A55 |  -.3332012   1.026544    -0.32   0.746    -2.366217    1.699815
+       small |   .3354773   .7993103     0.42   0.675    -1.247515     1.91847
+         Dpf |  -.2348219   .7221231    -0.33   0.746    -1.664949    1.195305
+       _cons |  -7.245416    4.49927    -1.61   0.110    -16.15599    1.665153
+------------------------------------------------------------------------------
+
+                                          --------------------------------
+                                                      delta_cn  delta_cn 
+                                          --------------------------------
+                                           unexp_af    -0.253    0.160   
+                                                      (0.350)   (0.427)  
+                                           unexp_ar    0.022     0.021   
+                                                      (0.017)   (0.016)  
+                                           exp_af      -0.142            
+                                                      (0.331)            
+                                           exp_ar     0.038**            
+                                                      (0.016)            
+                                           interLC1    0.416             
+                                                      (1.006)            
+                                           interLC2    -0.035            
+                                                      (0.030)            
+                                           lc          1.454             
+                                                      (1.382)            
+                                           inter11               0.094   
+                                                                (0.336)  
+                                           inter12               0.333   
+                                                                (0.437)  
+                                           inter21              0.038**  
+                                                                (0.016)  
+                                           inter22               0.048   
+                                                                (0.062)  
+                                           R2           0.23      0.23   
+                                           N            140       140    
+                                          --------------------------------
+                                           * p<0.1; ** p<0.05; *** p<0.01
+
+
+Linear regression                                      Number of obs =     140
+                                                       F( 23,   115) =       .
+                                                       Prob > F      =       .
+                                                       R-squared     =  0.2407
+                                                       Root MSE      =  4.2122
+
+------------------------------------------------------------------------------
+             |               Robust
+    delta_cn |      Coef.   Std. Err.      t    P>|t|     [95% Conf. Interval]
+-------------+----------------------------------------------------------------
+     inter11 |   .5226654   .7097231     0.74   0.463    -.8831594     1.92849
+     inter12 |  -.0751277   .4763895    -0.16   0.875    -1.018764    .8685081
+     inter21 |   .0377963   .0170524     2.22   0.029     .0040188    .0715737
+     inter22 |   .0003563   .0949652     0.00   0.997    -.1877515     .188464
+   interun11 |   .7262849   .9292169     0.78   0.436    -1.114315    2.566885
+   interun12 |   -.226605   .4619364    -0.49   0.625    -1.141612    .6884021
+   interun21 |   .0208104   .0164797     1.26   0.209    -.0118328    .0534535
+   interun22 |  -.0183804   .0712483    -0.26   0.797    -.1595097    .1227488
+         eta |   .0176124   .0422638     0.42   0.678    -.0661041     .101329
+      yrsedu |   14.15023   9.217639     1.54   0.127    -4.108136     32.4086
+         sex |   .1386732   .8499115     0.16   0.871    -1.544838    1.822184
+       ncomp |   .9289097   .4635858     2.00   0.047     .0106354    1.847184
+       nperc |   2.738853   3.284323     0.83   0.406    -3.766759    9.244466
+         np2 |  -.8628962   .7747628    -1.11   0.268    -2.397552    .6717599
+     married |  -.5984495   1.481867    -0.40   0.687    -3.533743    2.336844
+    employed |   .3348907   1.132613     0.30   0.768    -1.908597    2.578379
+    pubblico |  -.0126219   1.122797    -0.01   0.991    -2.236666    2.211422
+     selfemp |   2.307603   2.351803     0.98   0.329    -2.350866    6.966072
+         A52 |   .7010048   .9984945     0.70   0.484    -1.276821     2.67883
+         A53 |   .7599026   1.141444     0.67   0.507    -1.501077    3.020883
+         A54 |   .8046562   1.602084     0.50   0.616    -2.368764    3.978077
+         A55 |  -.0019544   1.126316    -0.00   0.999    -2.232969     2.22906
+       small |   .3348823   .8035288     0.42   0.678    -1.256753    1.926518
+         Dpf |  -.2150509   .7427562    -0.29   0.773    -1.686308    1.256206
+       _cons |  -7.088634   4.380579    -1.62   0.108    -15.76572     1.58845
+------------------------------------------------------------------------------
+
+                                     -------------------------------------------
+                                                  delta_cn  delta_cn  delta_cn 
+                                     -------------------------------------------
+                                      unexp_af     -0.253    0.160             
+                                                  (0.350)   (0.427)            
+                                      unexp_ar     0.022     0.021             
+                                                  (0.017)   (0.016)            
+                                      exp_af       -0.142                      
+                                                  (0.331)                      
+                                      exp_ar      0.038**                      
+                                                  (0.016)                      
+                                      interLC1     0.416                       
+                                                  (1.006)                      
+                                      interLC2     -0.035                      
+                                                  (0.030)                      
+                                      lc           1.454                       
+                                                  (1.382)                      
+                                      inter11                0.094     0.523   
+                                                            (0.336)   (0.710)  
+                                      inter12                0.333     -0.075  
+                                                            (0.437)   (0.476)  
+                                      inter21               0.038**   0.038**  
+                                                            (0.016)   (0.017)  
+                                      inter22                0.048     0.000   
+                                                            (0.062)   (0.095)  
+                                      interun11                        0.726   
+                                                                      (0.929)  
+                                      interun12                        -0.227  
+                                                                      (0.462)  
+                                      interun21                        0.021   
+                                                                      (0.016)  
+                                      interun22                        -0.018  
+                                                                      (0.071)  
+                                      R2            0.23      0.23      0.24   
+                                      N             140       140       140    
+                                     -------------------------------------------
+                                           * p<0.1; ** p<0.05; *** p<0.01
+
+
+Heckman selection model -- two-step estimates   Number of obs      =      2211
+(regression model with sample selection)        Censored obs       =      2071
+                                                Uncensored obs     =       140
+
+                                                Wald chi2(23)      =     40.34
+                                                Prob > chi2        =    0.0141
+
+------------------------------------------------------------------------------
+             |      Coef.   Std. Err.      z    P>|z|     [95% Conf. Interval]
+-------------+----------------------------------------------------------------
+delta_cn     |
+    unexp_af |  -.2584609   .4101564    -0.63   0.529    -1.062353     .545431
+    unexp_ar |   .0212341   .0140306     1.51   0.130    -.0062654    .0487335
+      exp_af |  -.1485281   .3831094    -0.39   0.698    -.8994087    .6023525
+      exp_ar |   .0373015   .0119519     3.12   0.002     .0138761    .0607269
+    interLC1 |   .2502278   2.515678     0.10   0.921    -4.680411    5.180866
+    interLC2 |  -.0330534   .0664702    -0.50   0.619    -.1633327    .0972259
+          lc |   1.486291   3.403844     0.44   0.662     -5.18512    8.157703
+         eta |    .036636   .0436011     0.84   0.401    -.0488205    .1220926
+      yrsedu |   10.53288   11.83997     0.89   0.374    -12.67304     33.7388
+         sex |   .0217014   1.119512     0.02   0.985    -2.172502    2.215904
+       ncomp |   .9989892   .4420292     2.26   0.024     .1326279     1.86535
+       nperc |   2.919832   2.675441     1.09   0.275    -2.323935      8.1636
+         np2 |  -.8907266   .6600694    -1.35   0.177    -2.184439    .4029856
+     married |  -1.001573   1.114515    -0.90   0.369    -3.185982    1.182836
+    employed |    .461703   1.229049     0.38   0.707    -1.947189    2.870595
+    pubblico |  -.3430692   1.152843    -0.30   0.766    -2.602601    1.916462
+     selfemp |   2.460618   1.556345     1.58   0.114    -.5897628    5.510999
+         A52 |   .8050359   1.850554     0.44   0.664    -2.821982    4.432054
+         A53 |    1.16163   1.771921     0.66   0.512    -2.311272    4.634532
+         A54 |   1.155181   2.784925     0.41   0.678    -4.303172    6.613534
+         A55 |   1.202662   6.363753     0.19   0.850    -11.27006    13.67539
+       small |   .3861643   .7943119     0.49   0.627    -1.170658    1.942987
+         Dpf |  -.2433001   .8226562    -0.30   0.767    -1.855677    1.369076
+       _cons |  -5.830709   7.547972    -0.77   0.440    -20.62446    8.963043
+-------------+----------------------------------------------------------------
+respondent   |
+          lc |   .0178678   .2309815     0.08   0.938    -.4348476    .4705833
+         eta |  -.0026371    .005063    -0.52   0.602    -.0125604    .0072862
+      yrsedu |   3.602987   1.189348     3.03   0.002     1.271907    5.934066
+         sex |   .2467644   .1116611     2.21   0.027     .0279127    .4656161
+       ncomp |   .0004204   .0531445     0.01   0.994    -.1037409    .1045817
+       nperc |   .2216946   .2889845     0.77   0.443    -.3447046    .7880938
+         np2 |  -.0519474   .0688222    -0.75   0.450    -.1868364    .0829417
+     married |   .0320471    .137921     0.23   0.816     -.238273    .3023673
+    employed |   .0473347    .153159     0.31   0.757    -.2528514    .3475209
+    pubblico |   .2511175   .1479301     1.70   0.090    -.0388203    .5410552
+     selfemp |  -.1443065   .1943058    -0.74   0.458    -.5251389    .2365259
+         A52 |  -.6420957   .1285694    -4.99   0.000    -.8940871   -.3901042
+         A53 |  -.5142501   .1216881    -4.23   0.000    -.7527543   -.2757459
+         A54 |   -.847892   .1439294    -5.89   0.000    -1.129988   -.5657956
+         A55 |  -1.557577   .3475483    -4.48   0.000    -2.238759    -.876395
+       small |   .1100392    .092918     1.18   0.236    -.0720768    .2921553
+         Dpf |  -.0326603   .1071551    -0.30   0.761    -.2426805    .1773598
+     lowcomp |   .2254569   .1200813     1.88   0.060    -.0098982    .4608119
+     verored |  -.0292921   .0373516    -0.78   0.433    -.1024998    .0439156
+       klima |   .1232168   .0454231     2.71   0.007      .034189    .2122445
+       _cons |   -2.65116   .5788502    -4.58   0.000    -3.785686   -1.516635
+-------------+----------------------------------------------------------------
+mills        |
+      lambda |  -1.093289   3.223456    -0.34   0.734    -7.411146    5.224568
+-------------+----------------------------------------------------------------
+         rho |   -0.27508
+       sigma |  3.9743791
+      lambda | -1.0932887   3.223456
+------------------------------------------------------------------------------
+(note: tables being merged have different numbers of rtitle columns)
+
+                               -------------------------------------------------------
+                                              delta_cn  delta_cn  delta_cn           
+                               -------------------------------------------------------
+                                  unexp_af     -0.253    0.160               -0.258  
+                                              (0.350)   (0.427)             (0.410)  
+                                  unexp_ar     0.022     0.021               0.021   
+                                              (0.017)   (0.016)             (0.014)  
+                                  exp_af       -0.142                        -0.149  
+                                              (0.331)                       (0.383)  
+                                  exp_ar      0.038**                       0.037*** 
+                                              (0.016)                       (0.012)  
+                                  interLC1     0.416                         0.250   
+                                              (1.006)                       (2.516)  
+                                  interLC2     -0.035                        -0.033  
+                                              (0.030)                       (0.066)  
+                                  lc           1.454                         0.018   
+                                              (1.382)                       (0.231)  
+                                  inter11                0.094     0.523             
+                                                        (0.336)   (0.710)            
+                                  inter12                0.333     -0.075            
+                                                        (0.437)   (0.476)            
+                                  inter21               0.038**   0.038**            
+                                                        (0.016)   (0.017)            
+                                  inter22                0.048     0.000             
+                                                        (0.062)   (0.095)            
+                                  interun11                        0.726             
+                                                                  (0.929)            
+                                  interun12                        -0.227            
+                                                                  (0.462)            
+                                  interun21                        0.021             
+                                                                  (0.016)            
+                                  interun22                        -0.018            
+                                                                  (0.071)            
+                                  R2            0.23      0.23      0.24             
+                                  N             140       140       140      2,211   
+                               -------------------------------------------------------
+                                           * p<0.1; ** p<0.05; *** p<0.01
+
+
+Heckman selection model -- two-step estimates   Number of obs      =      2211
+(regression model with sample selection)        Censored obs       =      2071
+                                                Uncensored obs     =       140
+
+                                                Wald chi2(22)      =     41.71
+                                                Prob > chi2        =    0.0068
+
+------------------------------------------------------------------------------
+             |      Coef.   Std. Err.      z    P>|z|     [95% Conf. Interval]
+-------------+----------------------------------------------------------------
+delta_cn     |
+    unexp_af |    .143076   .5115856     0.28   0.780    -.8596134    1.145765
+    unexp_ar |   .0200356   .0139831     1.43   0.152    -.0073708     .047442
+     inter11 |   .0786557   .4160695     0.19   0.850    -.7368256     .894137
+     inter12 |   .3138957   .5229851     0.60   0.548    -.7111363    1.338928
+     inter21 |   .0372692   .0118783     3.14   0.002     .0139881    .0605503
+     inter22 |   .0393251   .1268939     0.31   0.757    -.2093825    .2880326
+         eta |   .0278669   .0450689     0.62   0.536    -.0604665    .1162004
+      yrsedu |   11.14237   11.79286     0.94   0.345    -11.97121    34.25595
+         sex |  -.0429001   1.090017    -0.04   0.969    -2.179294    2.093494
+       ncomp |   .9342623   .4416206     2.12   0.034     .0687019    1.799823
+       nperc |   2.472793   2.672924     0.93   0.355    -2.766041    7.711628
+         np2 |  -.7754424   .6628831    -1.17   0.242    -2.074669    .5237846
+     married |  -.7694127   1.112283    -0.69   0.489    -2.949448    1.410622
+    employed |   .3473756   1.223279     0.28   0.776    -2.050208    2.744959
+    pubblico |  -.2803825    1.15487    -0.24   0.808    -2.543885     1.98312
+     selfemp |   2.360457   1.567737     1.51   0.132    -.7122516    5.433165
+         A52 |   1.114759   1.805801     0.62   0.537    -2.424546    4.654063
+         A53 |   1.186049   1.755801     0.68   0.499    -2.255258    4.627355
+         A54 |   1.600754   2.670095     0.60   0.549    -3.632537    6.834044
+         A55 |   1.562437   6.252493     0.25   0.803    -10.69222     13.8171
+       small |   .2457258   .7879914     0.31   0.755    -1.298709    1.790161
+         Dpf |  -.1572367   .8021218    -0.20   0.845    -1.729367    1.414893
+       _cons |  -4.838907   7.335512    -0.66   0.509    -19.21625    9.538433
+-------------+----------------------------------------------------------------
+respondent   |
+         eta |   -.002643   .0050637    -0.52   0.602    -.0125676    .0072816
+      yrsedu |   3.597514   1.187127     3.03   0.002     1.270789    5.924239
+         sex |   .2463414   .1115298     2.21   0.027     .0277471    .4649358
+       ncomp |   .0004108   .0531571     0.01   0.994    -.1037751    .1045967
+       nperc |    .219388   .2872293     0.76   0.445    -.3435711    .7823471
+         np2 |  -.0513859   .0683803    -0.75   0.452    -.1854089     .082637
+     married |   .0325043   .1378087     0.24   0.814    -.2375957    .3026044
+    employed |   .0475586   .1531532     0.31   0.756    -.2526162    .3477334
+    pubblico |   .2512442   .1479157     1.70   0.089    -.0386653    .5411537
+     selfemp |  -.1441016   .1943334    -0.74   0.458    -.5249881    .2367849
+         A52 |  -.6424094   .1284971    -5.00   0.000    -.8942591   -.3905597
+         A53 |  -.5146693   .1215659    -4.23   0.000    -.7529342   -.2764044
+         A54 |  -.8476008   .1438457    -5.89   0.000    -1.129533   -.5656683
+         A55 |  -1.557631   .3475805    -4.48   0.000    -2.238876    -.876386
+       small |   .1100397   .0929129     1.18   0.236    -.0720662    .2921455
+         Dpf |  -.0318897   .1066909    -0.30   0.765        -.241    .1772205
+     lowcomp |   .2250913   .1199745     1.88   0.061    -.0100543    .4602369
+     verored |  -.0293283   .0373619    -0.78   0.432    -.1025563    .0438998
+       klima |   .1231227   .0454123     2.71   0.007     .0341162    .2121293
+       _cons |  -2.646534   .5757739    -4.60   0.000     -3.77503   -1.518038
+-------------+----------------------------------------------------------------
+mills        |
+      lambda |  -1.231149   3.149459    -0.39   0.696    -7.403976    4.941678
+-------------+----------------------------------------------------------------
+         rho |   -0.30836
+       sigma |  3.9926107
+      lambda | -1.2311489   3.149459
+------------------------------------------------------------------------------
+(note: tables being merged have different numbers of rtitle columns)
+
+                    ----------------------------------------------------------------------------
+                                   delta_cn  delta_cn  delta_cn            delta_cn respondent 
+                    ----------------------------------------------------------------------------
+                       unexp_af     -0.253    0.160               -0.258          0.143        
+                                   (0.350)   (0.427)             (0.410)         (0.512)       
+                       unexp_ar     0.022     0.021               0.021           0.020        
+                                   (0.017)   (0.016)             (0.014)         (0.014)       
+                       exp_af       -0.142                        -0.149                       
+                                   (0.331)                       (0.383)                       
+                       exp_ar      0.038**                       0.037***                      
+                                   (0.016)                       (0.012)                       
+                       interLC1     0.416                         0.250                        
+                                   (1.006)                       (2.516)                       
+                       interLC2     -0.035                        -0.033                       
+                                   (0.030)                       (0.066)                       
+                       lc           1.454                         0.018                        
+                                   (1.382)                       (0.231)                       
+                       inter11                0.094     0.523                     0.079        
+                                             (0.336)   (0.710)                   (0.416)       
+                       inter12                0.333     -0.075                    0.314        
+                                             (0.437)   (0.476)                   (0.523)       
+                       inter21               0.038**   0.038**                  0.037***       
+                                             (0.016)   (0.017)                   (0.012)       
+                       inter22                0.048     0.000                     0.039        
+                                             (0.062)   (0.095)                   (0.127)       
+                       interun11                        0.726                                  
+                                                       (0.929)                                 
+                       interun12                        -0.227                                 
+                                                       (0.462)                                 
+                       interun21                        0.021                                  
+                                                       (0.016)                                 
+                       interun22                        -0.018                                 
+                                                       (0.071)                                 
+                       R2            0.23      0.23      0.24                                  
+                       N             140       140       140      2,211           2,211        
+                    ----------------------------------------------------------------------------
+                                           * p<0.1; ** p<0.05; *** p<0.01
+
+
+Heckman selection model -- two-step estimates   Number of obs      =      2211
+(regression model with sample selection)        Censored obs       =      2071
+                                                Uncensored obs     =       140
+
+                                                Wald chi2(24)      =     43.59
+                                                Prob > chi2        =    0.0085
+
+------------------------------------------------------------------------------
+             |      Coef.   Std. Err.      z    P>|z|     [95% Conf. Interval]
+-------------+----------------------------------------------------------------
+delta_cn     |
+     inter11 |   .5015691   .5713644     0.88   0.380    -.6182846    1.621423
+     inter12 |  -.0727242   .6366802    -0.11   0.909    -1.320595    1.175146
+     inter21 |   .0376518   .0118754     3.17   0.002     .0143765     .060927
+     inter22 |  -.0020183   .2624233    -0.01   0.994    -.5163586     .512322
+   interun11 |   .7000409    .726831     0.96   0.335    -.7245217    2.124604
+   interun12 |  -.2238404   .6175172    -0.36   0.717    -1.434152     .986471
+   interun21 |   .0205412   .0139833     1.47   0.142    -.0068656     .047948
+   interun22 |  -.0166801   .1823424    -0.09   0.927    -.3740646    .3407045
+         eta |   .0207304   .0451491     0.46   0.646    -.0677602     .109221
+      yrsedu |   12.69675   11.84794     1.07   0.284    -10.52479    35.91828
+         sex |   .0039371    1.07994     0.00   0.997    -2.112706     2.12058
+       ncomp |   .9380087   .4373838     2.14   0.032     .0807522    1.795265
+       nperc |   2.613908   2.662315     0.98   0.326    -2.604135     7.83195
+         np2 |  -.8375746    .663766    -1.26   0.207    -2.138532    .4633828
+     married |  -.6499858   1.107038    -0.59   0.557    -2.819741    1.519769
+    employed |   .2986395   1.212242     0.25   0.805    -2.077311     2.67459
+    pubblico |  -.1333381   1.160329    -0.11   0.909    -2.407541    2.140865
+     selfemp |   2.337909   1.552371     1.51   0.132    -.7046829    5.380501
+         A52 |   1.001419    1.79071     0.56   0.576    -2.508308    4.511147
+         A53 |   1.057483   1.756514     0.60   0.547    -2.385221    4.500187
+         A54 |   1.292921   2.662481     0.49   0.627    -3.925446    6.511288
+         A55 |    .998756   6.233425     0.16   0.873    -11.21853    13.21604
+       small |   .2868898   .7820552     0.37   0.714     -1.24591     1.81969
+         Dpf |  -.1739334   .7991571    -0.22   0.828    -1.740253    1.392386
+       _cons |  -5.809463   7.321991    -0.79   0.428     -20.1603    8.541377
+-------------+----------------------------------------------------------------
+respondent   |
+         eta |   -.002643   .0050637    -0.52   0.602    -.0125676    .0072816
+      yrsedu |   3.597514   1.187127     3.03   0.002     1.270789    5.924239
+         sex |   .2463414   .1115298     2.21   0.027     .0277471    .4649358
+       ncomp |   .0004108   .0531571     0.01   0.994    -.1037751    .1045967
+       nperc |    .219388   .2872293     0.76   0.445    -.3435711    .7823471
+         np2 |  -.0513859   .0683803    -0.75   0.452    -.1854089     .082637
+     married |   .0325043   .1378087     0.24   0.814    -.2375957    .3026044
+    employed |   .0475586   .1531532     0.31   0.756    -.2526162    .3477334
+    pubblico |   .2512442   .1479157     1.70   0.089    -.0386653    .5411537
+     selfemp |  -.1441016   .1943334    -0.74   0.458    -.5249881    .2367849
+         A52 |  -.6424094   .1284971    -5.00   0.000    -.8942591   -.3905597
+         A53 |  -.5146693   .1215659    -4.23   0.000    -.7529342   -.2764044
+         A54 |  -.8476008   .1438457    -5.89   0.000    -1.129533   -.5656683
+         A55 |  -1.557631   .3475805    -4.48   0.000    -2.238876    -.876386
+       small |   .1100397   .0929129     1.18   0.236    -.0720662    .2921455
+         Dpf |  -.0318897   .1066909    -0.30   0.765        -.241    .1772205
+     lowcomp |   .2250913   .1199745     1.88   0.061    -.0100543    .4602369
+     verored |  -.0293283   .0373619    -0.78   0.432    -.1025563    .0438998
+       klima |   .1231227   .0454123     2.71   0.007     .0341162    .2121293
+       _cons |  -2.646534   .5757739    -4.60   0.000     -3.77503   -1.518038
+-------------+----------------------------------------------------------------
+mills        |
+      lambda |  -.6564346    3.16338    -0.21   0.836    -6.856546    5.543677
+-------------+----------------------------------------------------------------
+         rho |   -0.16992
+       sigma |  3.8632302
+      lambda | -.65643463    3.16338
+------------------------------------------------------------------------------
+(note: tables being merged have different numbers of rtitle columns)
+
+          -------------------------------------------------------------------------------------------------
+                         delta_cn  delta_cn  delta_cn            delta_cn respondent  delta_cn respondent 
+          -------------------------------------------------------------------------------------------------
+             unexp_af     -0.253    0.160               -0.258          0.143                             
+                         (0.350)   (0.427)             (0.410)         (0.512)                            
+             unexp_ar     0.022     0.021               0.021           0.020                             
+                         (0.017)   (0.016)             (0.014)         (0.014)                            
+             exp_af       -0.142                        -0.149                                            
+                         (0.331)                       (0.383)                                            
+             exp_ar      0.038**                       0.037***                                           
+                         (0.016)                       (0.012)                                            
+             interLC1     0.416                         0.250                                             
+                         (1.006)                       (2.516)                                            
+             interLC2     -0.035                        -0.033                                            
+                         (0.030)                       (0.066)                                            
+             lc           1.454                         0.018                                             
+                         (1.382)                       (0.231)                                            
+             inter11                0.094     0.523                     0.079                0.502        
+                                   (0.336)   (0.710)                   (0.416)              (0.571)       
+             inter12                0.333     -0.075                    0.314               -0.073        
+                                   (0.437)   (0.476)                   (0.523)              (0.637)       
+             inter21               0.038**   0.038**                  0.037***             0.038***       
+                                   (0.016)   (0.017)                   (0.012)              (0.012)       
+             inter22                0.048     0.000                     0.039               -0.002        
+                                   (0.062)   (0.095)                   (0.127)              (0.262)       
+             interun11                        0.726                                          0.700        
+                                             (0.929)                                        (0.727)       
+             interun12                        -0.227                                        -0.224        
+                                             (0.462)                                        (0.618)       
+             interun21                        0.021                                          0.021        
+                                             (0.016)                                        (0.014)       
+             interun22                        -0.018                                        -0.017        
+                                             (0.071)                                        (0.182)       
+             R2            0.23      0.23      0.24                                                       
+             N             140       140       140      2,211           2,211                2,211        
+          -------------------------------------------------------------------------------------------------
+                                           * p<0.1; ** p<0.05; *** p<0.01
+
+
+.         
+.         #delimit;       
+delimiter now ;
+.         matrix define results=  reg1\reg2\reg3\reg4\reg5\reg6\reg7\reg8\reg9\reg10\reg11\reg12\reg13\reg14\reg15\
+>         /*K x 1 matrix*/                reg16\reg17\reg18\reg19\reg20\reg21\reg22\reg23\reg24\reg25\reg26\reg27\reg
+> 28\reg29\reg30\
+>                                                         reg31\reg32\reg33\reg34\reg35\reg36\reg37\reg38\reg39\reg40
+> \reg41\reg42;
+
+.                         #delimit cr
+delimiter now cr
+.         svmat results           /*Creates a variable whose values coincide with the K elements (coefficients) of th
+> e matrix*/
+
+.         keep results
+
+.         keep if results!=.      /*WHY SHOULD THERE BE MISSING?*/
+(4754 observations deleted)
+
+.         gen repl=0      
+
+.         save rep,replace        /*Dataset of 2 variables (results and repl) and K obs*/
+file rep.dta saved
+
+. 
+.         
+. cap program drop doit
+
+. program def doit
+  1.           local i=1
+  2.         while `i' < 370 | (`i' > 370 & `i'<1000) {
+  3.                 u databoot,clear
+  4.                 bsample
+  5.                 *bsample, cluster(nquest) id(id) strata(panel)          /*HERE... WHAT?*/
+.                 qui weeffect    /*Run the estimation program*/
+  6.                 
+.                 #delimit;       
+delimiter now ;
+.             matrix define results=      reg1\reg2\reg3\reg4\reg5\reg6\reg7\reg8\reg9\reg10\reg11\reg12\reg13\reg14\
+> reg15\
+>         /*K x 1 matrix*/                reg16\reg17\reg18\reg19\reg20\reg21\reg22\reg23\reg24\reg25\reg26\reg27\reg
+> 28\reg29\reg30\
+>                                                         reg31\reg32\reg33\reg34\reg35\reg36\reg37\reg38\reg39\reg40
+> \reg41\reg42;
+  7.                 #delimit cr
+delimiter now cr
+.                 svmat results
+  8.                 keep results
+  9.                 keep if results!=.
+ 10.                 gen repl=`i'    /*Tracks the number of bootstrap, from 1 to 1000*/
+ 11.                 save rep`i',replace
+ 12.                 u rep,clear
+ 13.                 append using rep`i'
+ 14.                 erase rep`i'.dta
+ 15.                 save rep,replace                /*Dataset of 2 variables and K+iK obs*/
+ 16.         local i=`i'+1
+ 17.                 }
+ 18. end
+
+. doit
+(4724 observations deleted)
+(note: file rep1.dta not found)
+file rep1.dta saved
+file rep.dta saved
+(4640 observations deleted)
+(note: file rep2.dta not found)
+file rep2.dta saved
+file rep.dta saved
+(4880 observations deleted)
+(note: file rep3.dta not found)
+file rep3.dta saved
+file rep.dta saved
+(4854 observations deleted)
+(note: file rep4.dta not found)
+file rep4.dta saved
+file rep.dta saved
+(4798 observations deleted)
+(note: file rep5.dta not found)
+file rep5.dta saved
+file rep.dta saved
+(4634 observations deleted)
+(note: file rep6.dta not found)
+file rep6.dta saved
+file rep.dta saved
+(4744 observations deleted)
+(note: file rep7.dta not found)
+file rep7.dta saved
+file rep.dta saved
+(4868 observations deleted)
+(note: file rep8.dta not found)
+file rep8.dta saved
+file rep.dta saved
+(4834 observations deleted)
+(note: file rep9.dta not found)
+file rep9.dta saved
+file rep.dta saved
+(4660 observations deleted)
+(note: file rep10.dta not found)
+file rep10.dta saved
+file rep.dta saved
+(4828 observations deleted)
+(note: file rep11.dta not found)
+file rep11.dta saved
+file rep.dta saved
+(4806 observations deleted)
+(note: file rep12.dta not found)
+file rep12.dta saved
+file rep.dta saved
+(4704 observations deleted)
+(note: file rep13.dta not found)
+file rep13.dta saved
+file rep.dta saved
+(4796 observations deleted)
+(note: file rep14.dta not found)
+file rep14.dta saved
+file rep.dta saved
+(4690 observations deleted)
+(note: file rep15.dta not found)
+file rep15.dta saved
+file rep.dta saved
+(4672 observations deleted)
+(note: file rep16.dta not found)
+file rep16.dta saved
+file rep.dta saved
+(4852 observations deleted)
+(note: file rep17.dta not found)
+file rep17.dta saved
+file rep.dta saved
+(4710 observations deleted)
+(note: file rep18.dta not found)
+file rep18.dta saved
+file rep.dta saved
+(4622 observations deleted)
+(note: file rep19.dta not found)
+file rep19.dta saved
+file rep.dta saved
+(4708 observations deleted)
+(note: file rep20.dta not found)
+file rep20.dta saved
+file rep.dta saved
+(4714 observations deleted)
+(note: file rep21.dta not found)
+file rep21.dta saved
+file rep.dta saved
+(4720 observations deleted)
+(note: file rep22.dta not found)
+file rep22.dta saved
+file rep.dta saved
+(4688 observations deleted)
+(note: file rep23.dta not found)
+file rep23.dta saved
+file rep.dta saved
+(4714 observations deleted)
+(note: file rep24.dta not found)
+file rep24.dta saved
+file rep.dta saved
+(4824 observations deleted)
+(note: file rep25.dta not found)
+file rep25.dta saved
+file rep.dta saved
+(4812 observations deleted)
+(note: file rep26.dta not found)
+file rep26.dta saved
+file rep.dta saved
+(4692 observations deleted)
+(note: file rep27.dta not found)
+file rep27.dta saved
+file rep.dta saved
+(4624 observations deleted)
+(note: file rep28.dta not found)
+file rep28.dta saved
+file rep.dta saved
+(4700 observations deleted)
+(note: file rep29.dta not found)
+file rep29.dta saved
+file rep.dta saved
+(4758 observations deleted)
+(note: file rep30.dta not found)
+file rep30.dta saved
+file rep.dta saved
+(4776 observations deleted)
+(note: file rep31.dta not found)
+file rep31.dta saved
+file rep.dta saved
+(4670 observations deleted)
+(note: file rep32.dta not found)
+file rep32.dta saved
+file rep.dta saved
+(4626 observations deleted)
+(note: file rep33.dta not found)
+file rep33.dta saved
+file rep.dta saved
+(4800 observations deleted)
+(note: file rep34.dta not found)
+file rep34.dta saved
+file rep.dta saved
+(4722 observations deleted)
+(note: file rep35.dta not found)
+file rep35.dta saved
+file rep.dta saved
+(4804 observations deleted)
+(note: file rep36.dta not found)
+file rep36.dta saved
+file rep.dta saved
+(4592 observations deleted)
+(note: file rep37.dta not found)
+file rep37.dta saved
+file rep.dta saved
+(4788 observations deleted)
+(note: file rep38.dta not found)
+file rep38.dta saved
+file rep.dta saved
+(4874 observations deleted)
+(note: file rep39.dta not found)
+file rep39.dta saved
+file rep.dta saved
+(4668 observations deleted)
+(note: file rep40.dta not found)
+file rep40.dta saved
+file rep.dta saved
+(4938 observations deleted)
+(note: file rep41.dta not found)
+file rep41.dta saved
+file rep.dta saved
+(4628 observations deleted)
+(note: file rep42.dta not found)
+file rep42.dta saved
+file rep.dta saved
+(4582 observations deleted)
+(note: file rep43.dta not found)
+file rep43.dta saved
+file rep.dta saved
+(4940 observations deleted)
+(note: file rep44.dta not found)
+file rep44.dta saved
+file rep.dta saved
+(4978 observations deleted)
+(note: file rep45.dta not found)
+file rep45.dta saved
+file rep.dta saved
+(4960 observations deleted)
+(note: file rep46.dta not found)
+file rep46.dta saved
+file rep.dta saved
+(4650 observations deleted)
+(note: file rep47.dta not found)
+file rep47.dta saved
+file rep.dta saved
+(4628 observations deleted)
+(note: file rep48.dta not found)
+file rep48.dta saved
+file rep.dta saved
+(4610 observations deleted)
+(note: file rep49.dta not found)
+file rep49.dta saved
+file rep.dta saved
+(4724 observations deleted)
+(note: file rep50.dta not found)
+file rep50.dta saved
+file rep.dta saved
+(4730 observations deleted)
+(note: file rep51.dta not found)
+file rep51.dta saved
+file rep.dta saved
+(4756 observations deleted)
+(note: file rep52.dta not found)
+file rep52.dta saved
+file rep.dta saved
+(4784 observations deleted)
+(note: file rep53.dta not found)
+file rep53.dta saved
+file rep.dta saved
+(4758 observations deleted)
+(note: file rep54.dta not found)
+file rep54.dta saved
+file rep.dta saved
+(4814 observations deleted)
+(note: file rep55.dta not found)
+file rep55.dta saved
+file rep.dta saved
+(4636 observations deleted)
+(note: file rep56.dta not found)
+file rep56.dta saved
+file rep.dta saved
+(4746 observations deleted)
+(note: file rep57.dta not found)
+file rep57.dta saved
+file rep.dta saved
+(4722 observations deleted)
+(note: file rep58.dta not found)
+file rep58.dta saved
+file rep.dta saved
+(4592 observations deleted)
+(note: file rep59.dta not found)
+file rep59.dta saved
+file rep.dta saved
+(4778 observations deleted)
+(note: file rep60.dta not found)
+file rep60.dta saved
+file rep.dta saved
+(4668 observations deleted)
+(note: file rep61.dta not found)
+file rep61.dta saved
+file rep.dta saved
+(4718 observations deleted)
+(note: file rep62.dta not found)
+file rep62.dta saved
+file rep.dta saved
+(4804 observations deleted)
+(note: file rep63.dta not found)
+file rep63.dta saved
+file rep.dta saved
+(4778 observations deleted)
+(note: file rep64.dta not found)
+file rep64.dta saved
+file rep.dta saved
+(4754 observations deleted)
+(note: file rep65.dta not found)
+file rep65.dta saved
+file rep.dta saved
+(4794 observations deleted)
+(note: file rep66.dta not found)
+file rep66.dta saved
+file rep.dta saved
+(4684 observations deleted)
+(note: file rep67.dta not found)
+file rep67.dta saved
+file rep.dta saved
+(4848 observations deleted)
+(note: file rep68.dta not found)
+file rep68.dta saved
+file rep.dta saved
+(4694 observations deleted)
+(note: file rep69.dta not found)
+file rep69.dta saved
+file rep.dta saved
+(4670 observations deleted)
+(note: file rep70.dta not found)
+file rep70.dta saved
+file rep.dta saved
+(4768 observations deleted)
+(note: file rep71.dta not found)
+file rep71.dta saved
+file rep.dta saved
+(4706 observations deleted)
+(note: file rep72.dta not found)
+file rep72.dta saved
+file rep.dta saved
+(4974 observations deleted)
+(note: file rep73.dta not found)
+file rep73.dta saved
+file rep.dta saved
+(4590 observations deleted)
+(note: file rep74.dta not found)
+file rep74.dta saved
+file rep.dta saved
+(4674 observations deleted)
+(note: file rep75.dta not found)
+file rep75.dta saved
+file rep.dta saved
+(4690 observations deleted)
+(note: file rep76.dta not found)
+file rep76.dta saved
+file rep.dta saved
+(4662 observations deleted)
+(note: file rep77.dta not found)
+file rep77.dta saved
+file rep.dta saved
+(4960 observations deleted)
+(note: file rep78.dta not found)
+file rep78.dta saved
+file rep.dta saved
+(4770 observations deleted)
+(note: file rep79.dta not found)
+file rep79.dta saved
+file rep.dta saved
+(4756 observations deleted)
+(note: file rep80.dta not found)
+file rep80.dta saved
+file rep.dta saved
+(4558 observations deleted)
+(note: file rep81.dta not found)
+file rep81.dta saved
+file rep.dta saved
+(4588 observations deleted)
+(note: file rep82.dta not found)
+file rep82.dta saved
+file rep.dta saved
+(4706 observations deleted)
+(note: file rep83.dta not found)
+file rep83.dta saved
+file rep.dta saved
+(4704 observations deleted)
+(note: file rep84.dta not found)
+file rep84.dta saved
+file rep.dta saved
+(4912 observations deleted)
+(note: file rep85.dta not found)
+file rep85.dta saved
+file rep.dta saved
+(4680 observations deleted)
+(note: file rep86.dta not found)
+file rep86.dta saved
+file rep.dta saved
+(4684 observations deleted)
+(note: file rep87.dta not found)
+file rep87.dta saved
+file rep.dta saved
+(4732 observations deleted)
+(note: file rep88.dta not found)
+file rep88.dta saved
+file rep.dta saved
+(4490 observations deleted)
+(note: file rep89.dta not found)
+file rep89.dta saved
+file rep.dta saved
+(4692 observations deleted)
+(note: file rep90.dta not found)
+file rep90.dta saved
+file rep.dta saved
+(4732 observations deleted)
+(note: file rep91.dta not found)
+file rep91.dta saved
+file rep.dta saved
+(4714 observations deleted)
+(note: file rep92.dta not found)
+file rep92.dta saved
+file rep.dta saved
+(4706 observations deleted)
+(note: file rep93.dta not found)
+file rep93.dta saved
+file rep.dta saved
+(4660 observations deleted)
+(note: file rep94.dta not found)
+file rep94.dta saved
+file rep.dta saved
+(4650 observations deleted)
+(note: file rep95.dta not found)
+file rep95.dta saved
+file rep.dta saved
+(4762 observations deleted)
+(note: file rep96.dta not found)
+file rep96.dta saved
+file rep.dta saved
+(4628 observations deleted)
+(note: file rep97.dta not found)
+file rep97.dta saved
+file rep.dta saved
+(4816 observations deleted)
+(note: file rep98.dta not found)
+file rep98.dta saved
+file rep.dta saved
+(4572 observations deleted)
+(note: file rep99.dta not found)
+file rep99.dta saved
+file rep.dta saved
+(4756 observations deleted)
+(note: file rep100.dta not found)
+file rep100.dta saved
+file rep.dta saved
+(4672 observations deleted)
+(note: file rep101.dta not found)
+file rep101.dta saved
+file rep.dta saved
+(4844 observations deleted)
+(note: file rep102.dta not found)
+file rep102.dta saved
+file rep.dta saved
+(4722 observations deleted)
+(note: file rep103.dta not found)
+file rep103.dta saved
+file rep.dta saved
+(4634 observations deleted)
+(note: file rep104.dta not found)
+file rep104.dta saved
+file rep.dta saved
+(4816 observations deleted)
+(note: file rep105.dta not found)
+file rep105.dta saved
+file rep.dta saved
+(4684 observations deleted)
+(note: file rep106.dta not found)
+file rep106.dta saved
+file rep.dta saved
+(4782 observations deleted)
+(note: file rep107.dta not found)
+file rep107.dta saved
+file rep.dta saved
+(4686 observations deleted)
+(note: file rep108.dta not found)
+file rep108.dta saved
+file rep.dta saved
+(4770 observations deleted)
+(note: file rep109.dta not found)
+file rep109.dta saved
+file rep.dta saved
+(4684 observations deleted)
+(note: file rep110.dta not found)
+file rep110.dta saved
+file rep.dta saved
+(4658 observations deleted)
+(note: file rep111.dta not found)
+file rep111.dta saved
+file rep.dta saved
+(4852 observations deleted)
+(note: file rep112.dta not found)
+file rep112.dta saved
+file rep.dta saved
+(4720 observations deleted)
+(note: file rep113.dta not found)
+file rep113.dta saved
+file rep.dta saved
+(4780 observations deleted)
+(note: file rep114.dta not found)
+file rep114.dta saved
+file rep.dta saved
+(4578 observations deleted)
+(note: file rep115.dta not found)
+file rep115.dta saved
+file rep.dta saved
+(4700 observations deleted)
+(note: file rep116.dta not found)
+file rep116.dta saved
+file rep.dta saved
+(4776 observations deleted)
+(note: file rep117.dta not found)
+file rep117.dta saved
+file rep.dta saved
+(4614 observations deleted)
+(note: file rep118.dta not found)
+file rep118.dta saved
+file rep.dta saved
+(4674 observations deleted)
+(note: file rep119.dta not found)
+file rep119.dta saved
+file rep.dta saved
+(4566 observations deleted)
+(note: file rep120.dta not found)
+file rep120.dta saved
+file rep.dta saved
+(4714 observations deleted)
+(note: file rep121.dta not found)
+file rep121.dta saved
+file rep.dta saved
+(4742 observations deleted)
+(note: file rep122.dta not found)
+file rep122.dta saved
+file rep.dta saved
+(4700 observations deleted)
+(note: file rep123.dta not found)
+file rep123.dta saved
+file rep.dta saved
+(4670 observations deleted)
+(note: file rep124.dta not found)
+file rep124.dta saved
+file rep.dta saved
+(4568 observations deleted)
+(note: file rep125.dta not found)
+file rep125.dta saved
+file rep.dta saved
+(4632 observations deleted)
+(note: file rep126.dta not found)
+file rep126.dta saved
+file rep.dta saved
+(4620 observations deleted)
+(note: file rep127.dta not found)
+file rep127.dta saved
+file rep.dta saved
+(4628 observations deleted)
+(note: file rep128.dta not found)
+file rep128.dta saved
+file rep.dta saved
+(4704 observations deleted)
+(note: file rep129.dta not found)
+file rep129.dta saved
+file rep.dta saved
+(4740 observations deleted)
+(note: file rep130.dta not found)
+file rep130.dta saved
+file rep.dta saved
+(4684 observations deleted)
+(note: file rep131.dta not found)
+file rep131.dta saved
+file rep.dta saved
+(4748 observations deleted)
+(note: file rep132.dta not found)
+file rep132.dta saved
+file rep.dta saved
+(4794 observations deleted)
+(note: file rep133.dta not found)
+file rep133.dta saved
+file rep.dta saved
+(4774 observations deleted)
+(note: file rep134.dta not found)
+file rep134.dta saved
+file rep.dta saved
+(4824 observations deleted)
+(note: file rep135.dta not found)
+file rep135.dta saved
+file rep.dta saved
+(4812 observations deleted)
+(note: file rep136.dta not found)
+file rep136.dta saved
+file rep.dta saved
+(4832 observations deleted)
+(note: file rep137.dta not found)
+file rep137.dta saved
+file rep.dta saved
+(4650 observations deleted)
+(note: file rep138.dta not found)
+file rep138.dta saved
+file rep.dta saved
+(4706 observations deleted)
+(note: file rep139.dta not found)
+file rep139.dta saved
+file rep.dta saved
+(4606 observations deleted)
+(note: file rep140.dta not found)
+file rep140.dta saved
+file rep.dta saved
+(4734 observations deleted)
+(note: file rep141.dta not found)
+file rep141.dta saved
+file rep.dta saved
+(4946 observations deleted)
+(note: file rep142.dta not found)
+file rep142.dta saved
+file rep.dta saved
+(4818 observations deleted)
+(note: file rep143.dta not found)
+file rep143.dta saved
+file rep.dta saved
+(4640 observations deleted)
+(note: file rep144.dta not found)
+file rep144.dta saved
+file rep.dta saved
+(4576 observations deleted)
+(note: file rep145.dta not found)
+file rep145.dta saved
+file rep.dta saved
+(4740 observations deleted)
+(note: file rep146.dta not found)
+file rep146.dta saved
+file rep.dta saved
+(4786 observations deleted)
+(note: file rep147.dta not found)
+file rep147.dta saved
+file rep.dta saved
+(4992 observations deleted)
+(note: file rep148.dta not found)
+file rep148.dta saved
+file rep.dta saved
+(4864 observations deleted)
+(note: file rep149.dta not found)
+file rep149.dta saved
+file rep.dta saved
+(4564 observations deleted)
+(note: file rep150.dta not found)
+file rep150.dta saved
+file rep.dta saved
+(4848 observations deleted)
+(note: file rep151.dta not found)
+file rep151.dta saved
+file rep.dta saved
+(4798 observations deleted)
+(note: file rep152.dta not found)
+file rep152.dta saved
+file rep.dta saved
+(4794 observations deleted)
+(note: file rep153.dta not found)
+file rep153.dta saved
+file rep.dta saved
+(4888 observations deleted)
+(note: file rep154.dta not found)
+file rep154.dta saved
+file rep.dta saved
+(4752 observations deleted)
+(note: file rep155.dta not found)
+file rep155.dta saved
+file rep.dta saved
+(4900 observations deleted)
+(note: file rep156.dta not found)
+file rep156.dta saved
+file rep.dta saved
+(4558 observations deleted)
+(note: file rep157.dta not found)
+file rep157.dta saved
+file rep.dta saved
+(4724 observations deleted)
+(note: file rep158.dta not found)
+file rep158.dta saved
+file rep.dta saved
+(4826 observations deleted)
+(note: file rep159.dta not found)
+file rep159.dta saved
+file rep.dta saved
+(4766 observations deleted)
+(note: file rep160.dta not found)
+file rep160.dta saved
+file rep.dta saved
+(4752 observations deleted)
+(note: file rep161.dta not found)
+file rep161.dta saved
+file rep.dta saved
+(4712 observations deleted)
+(note: file rep162.dta not found)
+file rep162.dta saved
+file rep.dta saved
+(4762 observations deleted)
+(note: file rep163.dta not found)
+file rep163.dta saved
+file rep.dta saved
+(4824 observations deleted)
+(note: file rep164.dta not found)
+file rep164.dta saved
+file rep.dta saved
+(4752 observations deleted)
+(note: file rep165.dta not found)
+file rep165.dta saved
+file rep.dta saved
+(4714 observations deleted)
+(note: file rep166.dta not found)
+file rep166.dta saved
+file rep.dta saved
+(4756 observations deleted)
+(note: file rep167.dta not found)
+file rep167.dta saved
+file rep.dta saved
+(4756 observations deleted)
+(note: file rep168.dta not found)
+file rep168.dta saved
+file rep.dta saved
+(4754 observations deleted)
+(note: file rep169.dta not found)
+file rep169.dta saved
+file rep.dta saved
+(4766 observations deleted)
+(note: file rep170.dta not found)
+file rep170.dta saved
+file rep.dta saved
+(4758 observations deleted)
+(note: file rep171.dta not found)
+file rep171.dta saved
+file rep.dta saved
+(4720 observations deleted)
+(note: file rep172.dta not found)
+file rep172.dta saved
+file rep.dta saved
+(4890 observations deleted)
+(note: file rep173.dta not found)
+file rep173.dta saved
+file rep.dta saved
+(4612 observations deleted)
+(note: file rep174.dta not found)
+file rep174.dta saved
+file rep.dta saved
+(4734 observations deleted)
+(note: file rep175.dta not found)
+file rep175.dta saved
+file rep.dta saved
+(4674 observations deleted)
+(note: file rep176.dta not found)
+file rep176.dta saved
+file rep.dta saved
+(4726 observations deleted)
+(note: file rep177.dta not found)
+file rep177.dta saved
+file rep.dta saved
+(4540 observations deleted)
+(note: file rep178.dta not found)
+file rep178.dta saved
+file rep.dta saved
+(4604 observations deleted)
+(note: file rep179.dta not found)
+file rep179.dta saved
+file rep.dta saved
+(4770 observations deleted)
+(note: file rep180.dta not found)
+file rep180.dta saved
+file rep.dta saved
+(4700 observations deleted)
+(note: file rep181.dta not found)
+file rep181.dta saved
+file rep.dta saved
+(4662 observations deleted)
+(note: file rep182.dta not found)
+file rep182.dta saved
+file rep.dta saved
+(4626 observations deleted)
+(note: file rep183.dta not found)
+file rep183.dta saved
+file rep.dta saved
+(4794 observations deleted)
+(note: file rep184.dta not found)
+file rep184.dta saved
+file rep.dta saved
+(4656 observations deleted)
+(note: file rep185.dta not found)
+file rep185.dta saved
+file rep.dta saved
+(4750 observations deleted)
+(note: file rep186.dta not found)
+file rep186.dta saved
+file rep.dta saved
+(4762 observations deleted)
+(note: file rep187.dta not found)
+file rep187.dta saved
+file rep.dta saved
+(4774 observations deleted)
+(note: file rep188.dta not found)
+file rep188.dta saved
+file rep.dta saved
+(4704 observations deleted)
+(note: file rep189.dta not found)
+file rep189.dta saved
+file rep.dta saved
+(4794 observations deleted)
+(note: file rep190.dta not found)
+file rep190.dta saved
+file rep.dta saved
+(4670 observations deleted)
+(note: file rep191.dta not found)
+file rep191.dta saved
+file rep.dta saved
+(4706 observations deleted)
+(note: file rep192.dta not found)
+file rep192.dta saved
+file rep.dta saved
+(4724 observations deleted)
+(note: file rep193.dta not found)
+file rep193.dta saved
+file rep.dta saved
+(4762 observations deleted)
+(note: file rep194.dta not found)
+file rep194.dta saved
+file rep.dta saved
+(4714 observations deleted)
+(note: file rep195.dta not found)
+file rep195.dta saved
+file rep.dta saved
+(4660 observations deleted)
+(note: file rep196.dta not found)
+file rep196.dta saved
+file rep.dta saved
+(4566 observations deleted)
+(note: file rep197.dta not found)
+file rep197.dta saved
+file rep.dta saved
+(4696 observations deleted)
+(note: file rep198.dta not found)
+file rep198.dta saved
+file rep.dta saved
+(4692 observations deleted)
+(note: file rep199.dta not found)
+file rep199.dta saved
+file rep.dta saved
+(4706 observations deleted)
+(note: file rep200.dta not found)
+file rep200.dta saved
+file rep.dta saved
+(4806 observations deleted)
+(note: file rep201.dta not found)
+file rep201.dta saved
+file rep.dta saved
+(4696 observations deleted)
+(note: file rep202.dta not found)
+file rep202.dta saved
+file rep.dta saved
+(4596 observations deleted)
+(note: file rep203.dta not found)
+file rep203.dta saved
+file rep.dta saved
+(4802 observations deleted)
+(note: file rep204.dta not found)
+file rep204.dta saved
+file rep.dta saved
+(4774 observations deleted)
+(note: file rep205.dta not found)
+file rep205.dta saved
+file rep.dta saved
+(4732 observations deleted)
+(note: file rep206.dta not found)
+file rep206.dta saved
+file rep.dta saved
+(4630 observations deleted)
+(note: file rep207.dta not found)
+file rep207.dta saved
+file rep.dta saved
+(4590 observations deleted)
+(note: file rep208.dta not found)
+file rep208.dta saved
+file rep.dta saved
+(4700 observations deleted)
+(note: file rep209.dta not found)
+file rep209.dta saved
+file rep.dta saved
+(4676 observations deleted)
+(note: file rep210.dta not found)
+file rep210.dta saved
+file rep.dta saved
+(4610 observations deleted)
+(note: file rep211.dta not found)
+file rep211.dta saved
+file rep.dta saved
+(4788 observations deleted)
+(note: file rep212.dta not found)
+file rep212.dta saved
+file rep.dta saved
+(4682 observations deleted)
+(note: file rep213.dta not found)
+file rep213.dta saved
+file rep.dta saved
+(4772 observations deleted)
+(note: file rep214.dta not found)
+file rep214.dta saved
+file rep.dta saved
+(4642 observations deleted)
+(note: file rep215.dta not found)
+file rep215.dta saved
+file rep.dta saved
+(4734 observations deleted)
+(note: file rep216.dta not found)
+file rep216.dta saved
+file rep.dta saved
+(4696 observations deleted)
+(note: file rep217.dta not found)
+file rep217.dta saved
+file rep.dta saved
+(4624 observations deleted)
+(note: file rep218.dta not found)
+file rep218.dta saved
+file rep.dta saved
+(4624 observations deleted)
+(note: file rep219.dta not found)
+file rep219.dta saved
+file rep.dta saved
+(4650 observations deleted)
+(note: file rep220.dta not found)
+file rep220.dta saved
+file rep.dta saved
+(4718 observations deleted)
+(note: file rep221.dta not found)
+file rep221.dta saved
+file rep.dta saved
+(4770 observations deleted)
+(note: file rep222.dta not found)
+file rep222.dta saved
+file rep.dta saved
+(4790 observations deleted)
+(note: file rep223.dta not found)
+file rep223.dta saved
+file rep.dta saved
+(4718 observations deleted)
+(note: file rep224.dta not found)
+file rep224.dta saved
+file rep.dta saved
+(4798 observations deleted)
+(note: file rep225.dta not found)
+file rep225.dta saved
+file rep.dta saved
+(4834 observations deleted)
+(note: file rep226.dta not found)
+file rep226.dta saved
+file rep.dta saved
+(4616 observations deleted)
+(note: file rep227.dta not found)
+file rep227.dta saved
+file rep.dta saved
+(4734 observations deleted)
+(note: file rep228.dta not found)
+file rep228.dta saved
+file rep.dta saved
+(4634 observations deleted)
+(note: file rep229.dta not found)
+file rep229.dta saved
+file rep.dta saved
+(4620 observations deleted)
+(note: file rep230.dta not found)
+file rep230.dta saved
+file rep.dta saved
+(4720 observations deleted)
+(note: file rep231.dta not found)
+file rep231.dta saved
+file rep.dta saved
+(4654 observations deleted)
+(note: file rep232.dta not found)
+file rep232.dta saved
+file rep.dta saved
+(4776 observations deleted)
+(note: file rep233.dta not found)
+file rep233.dta saved
+file rep.dta saved
+(4712 observations deleted)
+(note: file rep234.dta not found)
+file rep234.dta saved
+file rep.dta saved
+(4724 observations deleted)
+(note: file rep235.dta not found)
+file rep235.dta saved
+file rep.dta saved
+(4718 observations deleted)
+(note: file rep236.dta not found)
+file rep236.dta saved
+file rep.dta saved
+(4740 observations deleted)
+(note: file rep237.dta not found)
+file rep237.dta saved
+file rep.dta saved
+(4624 observations deleted)
+(note: file rep238.dta not found)
+file rep238.dta saved
+file rep.dta saved
+(4728 observations deleted)
+(note: file rep239.dta not found)
+file rep239.dta saved
+file rep.dta saved
+(4766 observations deleted)
+(note: file rep240.dta not found)
+file rep240.dta saved
+file rep.dta saved
+(4696 observations deleted)
+(note: file rep241.dta not found)
+file rep241.dta saved
+file rep.dta saved
+(4614 observations deleted)
+(note: file rep242.dta not found)
+file rep242.dta saved
+file rep.dta saved
+(4874 observations deleted)
+(note: file rep243.dta not found)
+file rep243.dta saved
+file rep.dta saved
+(4724 observations deleted)
+(note: file rep244.dta not found)
+file rep244.dta saved
+file rep.dta saved
+(4782 observations deleted)
+(note: file rep245.dta not found)
+file rep245.dta saved
+file rep.dta saved
+(4710 observations deleted)
+(note: file rep246.dta not found)
+file rep246.dta saved
+file rep.dta saved
+(4726 observations deleted)
+(note: file rep247.dta not found)
+file rep247.dta saved
+file rep.dta saved
+(4574 observations deleted)
+(note: file rep248.dta not found)
+file rep248.dta saved
+file rep.dta saved
+(4744 observations deleted)
+(note: file rep249.dta not found)
+file rep249.dta saved
+file rep.dta saved
+(4738 observations deleted)
+(note: file rep250.dta not found)
+file rep250.dta saved
+file rep.dta saved
+(4632 observations deleted)
+(note: file rep251.dta not found)
+file rep251.dta saved
+file rep.dta saved
+(4636 observations deleted)
+(note: file rep252.dta not found)
+file rep252.dta saved
+file rep.dta saved
+(4710 observations deleted)
+(note: file rep253.dta not found)
+file rep253.dta saved
+file rep.dta saved
+(4700 observations deleted)
+(note: file rep254.dta not found)
+file rep254.dta saved
+file rep.dta saved
+(4712 observations deleted)
+(note: file rep255.dta not found)
+file rep255.dta saved
+file rep.dta saved
+(4842 observations deleted)
+(note: file rep256.dta not found)
+file rep256.dta saved
+file rep.dta saved
+(4800 observations deleted)
+(note: file rep257.dta not found)
+file rep257.dta saved
+file rep.dta saved
+(4838 observations deleted)
+(note: file rep258.dta not found)
+file rep258.dta saved
+file rep.dta saved
+(4754 observations deleted)
+(note: file rep259.dta not found)
+file rep259.dta saved
+file rep.dta saved
+(4720 observations deleted)
+(note: file rep260.dta not found)
+file rep260.dta saved
+file rep.dta saved
+(4848 observations deleted)
+(note: file rep261.dta not found)
+file rep261.dta saved
+file rep.dta saved
+(4720 observations deleted)
+(note: file rep262.dta not found)
+file rep262.dta saved
+file rep.dta saved
+(4820 observations deleted)
+(note: file rep263.dta not found)
+file rep263.dta saved
+file rep.dta saved
+(4590 observations deleted)
+(note: file rep264.dta not found)
+file rep264.dta saved
+file rep.dta saved
+(4658 observations deleted)
+(note: file rep265.dta not found)
+file rep265.dta saved
+file rep.dta saved
+(4724 observations deleted)
+(note: file rep266.dta not found)
+file rep266.dta saved
+file rep.dta saved
+(4576 observations deleted)
+(note: file rep267.dta not found)
+file rep267.dta saved
+file rep.dta saved
+(4776 observations deleted)
+(note: file rep268.dta not found)
+file rep268.dta saved
+file rep.dta saved
+(4660 observations deleted)
+(note: file rep269.dta not found)
+file rep269.dta saved
+file rep.dta saved
+(4692 observations deleted)
+(note: file rep270.dta not found)
+file rep270.dta saved
+file rep.dta saved
+(4662 observations deleted)
+(note: file rep271.dta not found)
+file rep271.dta saved
+file rep.dta saved
+(4880 observations deleted)
+(note: file rep272.dta not found)
+file rep272.dta saved
+file rep.dta saved
+(4778 observations deleted)
+(note: file rep273.dta not found)
+file rep273.dta saved
+file rep.dta saved
+(4778 observations deleted)
+(note: file rep274.dta not found)
+file rep274.dta saved
+file rep.dta saved
+(4642 observations deleted)
+(note: file rep275.dta not found)
+file rep275.dta saved
+file rep.dta saved
+(4736 observations deleted)
+(note: file rep276.dta not found)
+file rep276.dta saved
+file rep.dta saved
+(4714 observations deleted)
+(note: file rep277.dta not found)
+file rep277.dta saved
+file rep.dta saved
+(4836 observations deleted)
+(note: file rep278.dta not found)
+file rep278.dta saved
+file rep.dta saved
+(4804 observations deleted)
+(note: file rep279.dta not found)
+file rep279.dta saved
+file rep.dta saved
+(4656 observations deleted)
+(note: file rep280.dta not found)
+file rep280.dta saved
+file rep.dta saved
+(4776 observations deleted)
+(note: file rep281.dta not found)
+file rep281.dta saved
+file rep.dta saved
+(4634 observations deleted)
+(note: file rep282.dta not found)
+file rep282.dta saved
+file rep.dta saved
+(4676 observations deleted)
+(note: file rep283.dta not found)
+file rep283.dta saved
+file rep.dta saved
+(4658 observations deleted)
+(note: file rep284.dta not found)
+file rep284.dta saved
+file rep.dta saved
+(4670 observations deleted)
+(note: file rep285.dta not found)
+file rep285.dta saved
+file rep.dta saved
+(4680 observations deleted)
+(note: file rep286.dta not found)
+file rep286.dta saved
+file rep.dta saved
+(4704 observations deleted)
+(note: file rep287.dta not found)
+file rep287.dta saved
+file rep.dta saved
+(4686 observations deleted)
+(note: file rep288.dta not found)
+file rep288.dta saved
+file rep.dta saved
+(4904 observations deleted)
+(note: file rep289.dta not found)
+file rep289.dta saved
+file rep.dta saved
+(4646 observations deleted)
+(note: file rep290.dta not found)
+file rep290.dta saved
+file rep.dta saved
+(4718 observations deleted)
+(note: file rep291.dta not found)
+file rep291.dta saved
+file rep.dta saved
+(4896 observations deleted)
+(note: file rep292.dta not found)
+file rep292.dta saved
+file rep.dta saved
+(4762 observations deleted)
+(note: file rep293.dta not found)
+file rep293.dta saved
+file rep.dta saved
+(4712 observations deleted)
+(note: file rep294.dta not found)
+file rep294.dta saved
+file rep.dta saved
+(4750 observations deleted)
+(note: file rep295.dta not found)
+file rep295.dta saved
+file rep.dta saved
+(4828 observations deleted)
+(note: file rep296.dta not found)
+file rep296.dta saved
+file rep.dta saved
+(4970 observations deleted)
+(note: file rep297.dta not found)
+file rep297.dta saved
+file rep.dta saved
+(4568 observations deleted)
+(note: file rep298.dta not found)
+file rep298.dta saved
+file rep.dta saved
+(4772 observations deleted)
+(note: file rep299.dta not found)
+file rep299.dta saved
+file rep.dta saved
+(4648 observations deleted)
+(note: file rep300.dta not found)
+file rep300.dta saved
+file rep.dta saved
+(4684 observations deleted)
+(note: file rep301.dta not found)
+file rep301.dta saved
+file rep.dta saved
+(4720 observations deleted)
+(note: file rep302.dta not found)
+file rep302.dta saved
+file rep.dta saved
+(4776 observations deleted)
+(note: file rep303.dta not found)
+file rep303.dta saved
+file rep.dta saved
+(4698 observations deleted)
+(note: file rep304.dta not found)
+file rep304.dta saved
+file rep.dta saved
+(4756 observations deleted)
+(note: file rep305.dta not found)
+file rep305.dta saved
+file rep.dta saved
+(4808 observations deleted)
+(note: file rep306.dta not found)
+file rep306.dta saved
+file rep.dta saved
+(4834 observations deleted)
+(note: file rep307.dta not found)
+file rep307.dta saved
+file rep.dta saved
+(4720 observations deleted)
+(note: file rep308.dta not found)
+file rep308.dta saved
+file rep.dta saved
+(4614 observations deleted)
+(note: file rep309.dta not found)
+file rep309.dta saved
+file rep.dta saved
+(4790 observations deleted)
+(note: file rep310.dta not found)
+file rep310.dta saved
+file rep.dta saved
+(4686 observations deleted)
+(note: file rep311.dta not found)
+file rep311.dta saved
+file rep.dta saved
+(4572 observations deleted)
+(note: file rep312.dta not found)
+file rep312.dta saved
+file rep.dta saved
+(4570 observations deleted)
+(note: file rep313.dta not found)
+file rep313.dta saved
+file rep.dta saved
+(4658 observations deleted)
+(note: file rep314.dta not found)
+file rep314.dta saved
+file rep.dta saved
+(4692 observations deleted)
+(note: file rep315.dta not found)
+file rep315.dta saved
+file rep.dta saved
+(4784 observations deleted)
+(note: file rep316.dta not found)
+file rep316.dta saved
+file rep.dta saved
+(4758 observations deleted)
+(note: file rep317.dta not found)
+file rep317.dta saved
+file rep.dta saved
+(4582 observations deleted)
+(note: file rep318.dta not found)
+file rep318.dta saved
+file rep.dta saved
+(4596 observations deleted)
+(note: file rep319.dta not found)
+file rep319.dta saved
+file rep.dta saved
+(4652 observations deleted)
+(note: file rep320.dta not found)
+file rep320.dta saved
+file rep.dta saved
+(4628 observations deleted)
+(note: file rep321.dta not found)
+file rep321.dta saved
+file rep.dta saved
+(4662 observations deleted)
+(note: file rep322.dta not found)
+file rep322.dta saved
+file rep.dta saved
+(4710 observations deleted)
+(note: file rep323.dta not found)
+file rep323.dta saved
+file rep.dta saved
+(4704 observations deleted)
+(note: file rep324.dta not found)
+file rep324.dta saved
+file rep.dta saved
+(4732 observations deleted)
+(note: file rep325.dta not found)
+file rep325.dta saved
+file rep.dta saved
+(4618 observations deleted)
+(note: file rep326.dta not found)
+file rep326.dta saved
+file rep.dta saved
+(4634 observations deleted)
+(note: file rep327.dta not found)
+file rep327.dta saved
+file rep.dta saved
+(4736 observations deleted)
+(note: file rep328.dta not found)
+file rep328.dta saved
+file rep.dta saved
+(4608 observations deleted)
+(note: file rep329.dta not found)
+file rep329.dta saved
+file rep.dta saved
+(4728 observations deleted)
+(note: file rep330.dta not found)
+file rep330.dta saved
+file rep.dta saved
+(4760 observations deleted)
+(note: file rep331.dta not found)
+file rep331.dta saved
+file rep.dta saved
+(4684 observations deleted)
+(note: file rep332.dta not found)
+file rep332.dta saved
+file rep.dta saved
+(4720 observations deleted)
+(note: file rep333.dta not found)
+file rep333.dta saved
+file rep.dta saved
+(4718 observations deleted)
+(note: file rep334.dta not found)
+file rep334.dta saved
+file rep.dta saved
+(4936 observations deleted)
+(note: file rep335.dta not found)
+file rep335.dta saved
+file rep.dta saved
+(4718 observations deleted)
+(note: file rep336.dta not found)
+file rep336.dta saved
+file rep.dta saved
+(4596 observations deleted)
+(note: file rep337.dta not found)
+file rep337.dta saved
+file rep.dta saved
+(4714 observations deleted)
+(note: file rep338.dta not found)
+file rep338.dta saved
+file rep.dta saved
+(4592 observations deleted)
+(note: file rep339.dta not found)
+file rep339.dta saved
+file rep.dta saved
+(4728 observations deleted)
+(note: file rep340.dta not found)
+file rep340.dta saved
+file rep.dta saved
+(4654 observations deleted)
+(note: file rep341.dta not found)
+file rep341.dta saved
+file rep.dta saved
+(4688 observations deleted)
+(note: file rep342.dta not found)
+file rep342.dta saved
+file rep.dta saved
+(4746 observations deleted)
+(note: file rep343.dta not found)
+file rep343.dta saved
+file rep.dta saved
+(4718 observations deleted)
+(note: file rep344.dta not found)
+file rep344.dta saved
+file rep.dta saved
+(4648 observations deleted)
+(note: file rep345.dta not found)
+file rep345.dta saved
+file rep.dta saved
+(4738 observations deleted)
+(note: file rep346.dta not found)
+file rep346.dta saved
+file rep.dta saved
+(4830 observations deleted)
+(note: file rep347.dta not found)
+file rep347.dta saved
+file rep.dta saved
+(4740 observations deleted)
+(note: file rep348.dta not found)
+file rep348.dta saved
+file rep.dta saved
+(4730 observations deleted)
+(note: file rep349.dta not found)
+file rep349.dta saved
+file rep.dta saved
+(4714 observations deleted)
+(note: file rep350.dta not found)
+file rep350.dta saved
+file rep.dta saved
+(4814 observations deleted)
+(note: file rep351.dta not found)
+file rep351.dta saved
+file rep.dta saved
+(4702 observations deleted)
+(note: file rep352.dta not found)
+file rep352.dta saved
+file rep.dta saved
+(4646 observations deleted)
+(note: file rep353.dta not found)
+file rep353.dta saved
+file rep.dta saved
+(4772 observations deleted)
+(note: file rep354.dta not found)
+file rep354.dta saved
+file rep.dta saved
+(4750 observations deleted)
+(note: file rep355.dta not found)
+file rep355.dta saved
+file rep.dta saved
+(4738 observations deleted)
+(note: file rep356.dta not found)
+file rep356.dta saved
+file rep.dta saved
+(4594 observations deleted)
+(note: file rep357.dta not found)
+file rep357.dta saved
+file rep.dta saved
+(4642 observations deleted)
+(note: file rep358.dta not found)
+file rep358.dta saved
+file rep.dta saved
+(4790 observations deleted)
+(note: file rep359.dta not found)
+file rep359.dta saved
+file rep.dta saved
+(4678 observations deleted)
+(note: file rep360.dta not found)
+file rep360.dta saved
+file rep.dta saved
+(4598 observations deleted)
+(note: file rep361.dta not found)
+file rep361.dta saved
+file rep.dta saved
+(4738 observations deleted)
+(note: file rep362.dta not found)
+file rep362.dta saved
+file rep.dta saved
+(4858 observations deleted)
+(note: file rep363.dta not found)
+file rep363.dta saved
+file rep.dta saved
+(4556 observations deleted)
+(note: file rep364.dta not found)
+file rep364.dta saved
+file rep.dta saved
+(4650 observations deleted)
+(note: file rep365.dta not found)
+file rep365.dta saved
+file rep.dta saved
+(4742 observations deleted)
+(note: file rep366.dta not found)
+file rep366.dta saved
+file rep.dta saved
+(4662 observations deleted)
+(note: file rep367.dta not found)
+file rep367.dta saved
+file rep.dta saved
+(4624 observations deleted)
+(note: file rep368.dta not found)
+file rep368.dta saved
+file rep.dta saved
+(4764 observations deleted)
+(note: file rep369.dta not found)
+file rep369.dta saved
+file rep.dta saved
+
+. 
+. u rep,clear
+
+. replace repl=repl+1                             /*From 1 to 1001*/
+(15540 real changes made)
+
+. gen p=1
+
+. sort repl
+
+. qui by repl:replace p=sum(p)    /*Running sum of p, by repl (p goes from 1 to k coefficients)*/
+
+. ren results1 coeff
+
+. reshape wide coeff,i(repl) j(p)
+(note: j = 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 3
+> 9 40 41 42)
+
+Data                               long   ->   wide
+-----------------------------------------------------------------------------
+Number of obs.                    15540   ->     370
+Number of variables                   3   ->      43
+j variable (42 values)                p   ->   (dropped)
+xij variables:
+                                  coeff   ->   coeff1 coeff2 ... coeff42
+-----------------------------------------------------------------------------
+
+. compress
+repl was float now int
+
+. save rep,replace                                /*K variables*/
+file rep.dta saved
+
+. 
+. /***************************************************************************************************/
+. /*Now I compute the P-VALUES!!!*/
+. /***************************************************************************************************/
+. 
+. u databoot,clear
+
+. 
+. /******FIT H*****/
+. qui     heckman mu_H sex yrsedu whiteco eta A52-A55 com2-com4 Dnperc lit risfin risf2 Daf3 /*
+> */ p_prov p_prov2 p_com2-p_com4 p_A5* impacq* manstra anposs anposq Danposs piubagni /*
+> */ hprices06 hpr_sq sport04 high_grw trib_inef va2 avgva if rotaz==1 & x_cas==0, /*
+> */ select(lowcomp verored klima Dexp sex sex yrsedu whiteco eta A52-A55 com2-com4 Dnperc lit risfin risf2 Daf3 /*
+> */ p_prov p_prov2 p_com2-p_com4 p_A5* impacq* manstra anposs anposq Danposs piubagni /*
+> */ hprices06 hpr_sq sport04 high_grw trib_inef va2 avgva) nolog twostep 
+
+. 
+. predict mu_Hh_heck                      /*Valabit is missing for a handful of households*/
+(option xb assumed; fitted values)
+
+.                                                                                 /*1ST FITTED REGRESSOR*/
+. 
+. sort nq anno
+
+. qui by nq: gen mu_H10=mu_H[_n+1]
+
+. lab var mu_H10 "Expected return on housing in 2010 (for those in the panel)"
+
+.                                 
+. /******FIT FTSE*****/
+. gen x1=FTSEm_l1
+(7951 missing values generated)
+
+. gen x2=FTSEm_l2
+(7951 missing values generated)
+
+. gen x3=FTSEm_l3
+(7951 missing values generated)
+
+. gen x4=FTSEm_l4
+(7951 missing values generated)
+
+. gen x5=FTSEm_l5
+(7951 missing values generated)
+
+. gen x6=FTSEm_l6
+(7951 missing values generated)
+
+. 
+. qui heckman mu_R sex yrsedu whiteco eta A52-A55 com2-com4 Dnperc lit risfin risf2 Daf3 /*
+> */ FTSEm_l1 FTSEm_l2 FTSEm_l3 FTSEm_l4 FTSEm_l5 FTSEm_l6 hprices06 hpr_ sport04 /*
+> */ trib_inef high_grw va2 avgva if x_bor==0, /*
+> */ select(lowcomp verored klima Dexp2 sex yrsedu whiteco eta A52-A55 com2-com4 lit Dnperc risfin risf2/*
+> */ Daf3 FTSEm_l1 FTSEm_l2 FTSEm_l3 FTSEm_l4 FTSEm_l5 FTSEm_l6 hprices06 hpr_ sport04 /*
+> */ trib_inef high_grw va2 avgva) nolog twostep
+
+. 
+. replace FTSEm_l1=FTSEmo12
+(6402 real changes made)
+
+. replace FTSEm_l2=FTSEmo11
+(6402 real changes made)
+
+. replace FTSEm_l3=FTSEmo10 
+(6402 real changes made)
+
+. replace FTSEm_l4=FTSEmo9
+(6402 real changes made)
+
+. replace FTSEm_l5=FTSEmo8
+(6402 real changes made)
+
+. replace FTSEm_l6=FTSEmo7
+(6402 real changes made)
+
+. predict mu_Rh_heck if x_bor==0  /*2ND FITTED REGRESSOR*/
+(option xb assumed; fitted values)
+(8462 missing values generated)
+
+. 
+. replace FTSEm_l1=x1
+(6402 real changes made)
+
+. replace FTSEm_l2=x2
+(6402 real changes made)
+
+. replace FTSEm_l3=x3 
+(6402 real changes made)
+
+. replace FTSEm_l4=x4
+(6402 real changes made)
+
+. replace FTSEm_l5=x5
+(6402 real changes made)
+
+. replace FTSEm_l6=x6
+(6402 real changes made)
+
+. drop x1-x6
+
+. 
+. /******FIT Bank deposits*****/
+. gen x1=bank_l1
+(7951 missing values generated)
+
+. gen x2=bank_l2
+(7951 missing values generated)
+
+. gen x3=bank_l3
+(7951 missing values generated)
+
+. gen x4=bank_l4
+(7951 missing values generated)
+
+. gen x5=bank_l5
+(7951 missing values generated)
+
+. gen x6=bank_l6
+(7951 missing values generated)
+
+. 
+. qui heckman mu_rf sex yrsedu whiteco eta A52-A55 com2-com4 Dnperc lit risfin risf2 Daf3 /*
+> */ bank_l1 bank_l2 bank_l3 bank_l4 bank_l5 bank_l6 hprices06 hpr_ sport04 /*
+> */ trib_inef high_grw va2 avgva if x_int==0, /*
+> */ select(lowcomp verored klima Dexp1 sex yrsedu whiteco eta A52-A55 com2-com4 Dnperc lit risfin risf2/*
+> */ Daf3 bank_l1 bank_l2 bank_l3 bank_l4 bank_l5 bank_l6 hprices06 hpr_ sport04 /*
+> */ trib_inef high_grw va2 avgva) nolog twostep
+
+. 
+. replace bank_l1=bankdep12
+(6402 real changes made)
+
+. replace bank_l2=bankdep11
+(6402 real changes made)
+
+. replace bank_l3=bankdep10 
+(6402 real changes made)
+
+. replace bank_l4=bankdep9
+(6402 real changes made)
+
+. replace bank_l5=bankdep8
+(6402 real changes made)
+
+. replace bank_l6=bankdep7
+(5574 real changes made)
+
+. predict mu_rfh_heck if x_int==0         /*3RD FITTED REGRESSOR*/
+(option xb assumed; fitted values)
+(9131 missing values generated)
+
+. 
+. replace bank_l1=x1
+(6402 real changes made)
+
+. replace bank_l2=x2
+(6402 real changes made)
+
+. replace bank_l3=x3 
+(6402 real changes made)
+
+. replace bank_l4=x4
+(6402 real changes made)
+
+. replace bank_l5=x5
+(6402 real changes made)
+
+. replace bank_l6=x6
+(5574 real changes made)
+
+. drop x1-x6
+
+.                         
+. /******FIT Government bonds*****/
+. gen x1=bonds_l1
+
+. gen x2=bonds_l2
+
+. gen x3=bonds_l3
+
+. gen x4=bonds_l4
+
+. gen x5=bonds_l5
+
+. gen x6=bonds_l6
+
+. 
+. qui heckman mu_rbnd sex yrsedu whiteco eta A52-A55 com2-com4 Dnperc lit risfin risf2 Daf3 /*
+> */ bonds_l1 bonds_l2 bonds_l3 bonds_l4 bonds_l5 bonds_l6 hprices06 hpr_ sport04 /*
+> */ trib_inef high_grw va2 avgva if x_int==0, /*
+> */ select(lowcomp verored klima Dexp1 sex yrsedu whiteco eta A52-A55 com2-com4 Dnperc lit risfin risf2/*
+> */ Daf3 bonds_l1 bonds_l2 bonds_l3 bonds_l4 bonds_l5 bonds_l6 hprices06 hpr_ sport04 /*
+> */ trib_inef high_grw va2 avgva) nolog twostep
+
+. 
+. replace bonds_l1=bonds12
+(14353 real changes made)
+
+. replace bonds_l2=bonds11
+(14353 real changes made)
+
+. replace bonds_l3=bonds10 
+(14353 real changes made)
+
+. replace bonds_l4=bonds9
+(14353 real changes made)
+
+. replace bonds_l5=bonds8
+(14353 real changes made)
+
+. replace bonds_l6=bonds7
+(14353 real changes made)
+
+. predict mu_rbndh_heck if x_int==0       /*4TH FITTED REGRESSOR*/
+(option xb assumed; fitted values)
+(9131 missing values generated)
+
+. 
+. replace bonds_l1=x1
+(14353 real changes made)
+
+. replace bonds_l2=x2
+(14353 real changes made)
+
+. replace bonds_l3=x3 
+(14353 real changes made)
+
+. replace bonds_l4=x4
+(14353 real changes made)
+
+. replace bonds_l5=x5
+(14353 real changes made)
+
+. replace bonds_l6=x6
+(14353 real changes made)
+
+. drop x1-x6
+
+.                         
+. /**************************************************************************************/
+. 
+. /********** COMPUTE (1+rho)E08(R09) (expectation)**********/
+. #delimit;
+delimiter now ;
+. gen exp_R  =(1+0.4558194)*mu_R;
+(14225 missing values generated)
+
+. gen exp_Rhk=(1+0.4558194)*mu_Rh_heck;
+(8462 missing values generated)
+
+. gen exp_bnd  =(1+0.7531304)*mu_rbnd;
+(14724 missing values generated)
+
+. gen exp_bndhk=(1+0.7531304)*mu_rbndh_heck;
+(9131 missing values generated)
+
+. gen exp_rf  =(1+0.739289)*mu_rf;
+(14726 missing values generated)
+
+. gen exp_rfhk=(1+0.739289)*mu_rfh_heck;
+(9131 missing values generated)
+
+. gen exp_Hhk=2*mu_Hh_heck;
+
+. /********NOW CONSTRUCT the regressors**********************/
+> /*... unexpected shocks...*/
+> gen unexp_af1  =af1*(Rrf-exp_rf);
+(14726 missing values generated)
+
+. gen unexp_af1hk=af1*(Rrf-exp_rfhk);
+(9131 missing values generated)
+
+. gen unexp_af2  =af2*(Rbnd-exp_bnd);
+(14724 missing values generated)
+
+.                 /*Many zeros for non-holders!*/
+> gen unexp_af2hk=af2*(Rbnd-exp_bndhk);
+(9131 missing values generated)
+
+. gen unexp_af3  =af3*(RR-exp_R);
+(14225 missing values generated)
+
+. gen unexp_af3hk=af3*(RR-exp_Rhk);
+(8462 missing values generated)
+
+. gen unexp_ar1hk=ar1*(RH-exp_Hhk);
+(7951 missing values generated)
+
+. gen unexp_ar2  =ar2*(RR-exp_R);
+(14225 missing values generated)
+
+. gen unexp_ar2hk=ar2*(RR-exp_Rhk);
+(8462 missing values generated)
+
+. gen unexp_af  =unexp_af1+unexp_af2+unexp_af3;
+(15193 missing values generated)
+
+. gen unexp_ar  =unexp_ar1hk+unexp_ar2;
+(14225 missing values generated)
+
+. gen unexp_afar=unexp_af+unexp_ar;
+(15193 missing values generated)
+
+. gen unexp_afhk=unexp_af1hk+unexp_af2hk+unexp_af3hk;
+(9425 missing values generated)
+
+. gen unexp_arhk=unexp_ar1hk+unexp_ar2hk;
+(8462 missing values generated)
+
+. gen unexp_afarhk=unexp_afhk+unexp_arhk;
+(9425 missing values generated)
+
+. gen unexp_af12  = unexp_af1  +unexp_af2;
+(14729 missing values generated)
+
+. gen unexp_af12hk= unexp_af1hk+unexp_af2hk;
+(9131 missing values generated)
+
+. gen unexp_af3ar2  = unexp_af3  +unexp_ar2;
+(14225 missing values generated)
+
+. gen unexp_af3ar2hk= unexp_af3hk+unexp_ar2hk;
+(8462 missing values generated)
+
+. /* ... and anticipated changes */
+> gen exp_af1  =af1*exp_rf;
+(14726 missing values generated)
+
+. gen exp_af1hk=af1*exp_rfhk;
+(9131 missing values generated)
+
+. gen exp_af2  =af2*exp_bnd;
+(14724 missing values generated)
+
+. gen exp_af2hk=af2*exp_bndhk;
+(9131 missing values generated)
+
+. gen exp_af3  =af3*exp_R;
+(14225 missing values generated)
+
+. gen exp_af3hk=af3*exp_Rhk;
+(8462 missing values generated)
+
+. gen exp_ar1hk=ar1*exp_Hhk;
+
+. gen exp_ar2  =ar2*exp_R;
+(14225 missing values generated)
+
+. gen exp_ar2hk=ar2*exp_Rhk;
+(8462 missing values generated)
+
+. gen exp_af  =exp_af1+exp_af2+exp_af3;
+(15193 missing values generated)
+
+. gen exp_ar  =exp_ar1hk+exp_ar2;
+(14225 missing values generated)
+
+. gen exp_afar=exp_af+exp_ar;
+(15193 missing values generated)
+
+. gen exp_afhk=exp_af1hk+exp_af2hk+exp_af3hk;
+(9425 missing values generated)
+
+. gen exp_arhk=exp_ar1hk+exp_ar2hk;
+(8462 missing values generated)
+
+. gen exp_afarhk=exp_afhk+exp_arhk;
+(9425 missing values generated)
+
+. gen exp_af12 =exp_af1 +exp_af2;
+(14729 missing values generated)
+
+. gen exp_af12hk=exp_af1hk+exp_af2hk;
+(9131 missing values generated)
+
+. gen exp_af3ar2  = exp_af3  +exp_ar2;
+(14225 missing values generated)
+
+. gen exp_af3ar2hk= exp_af3hk+exp_ar2hk;
+(8462 missing values generated)
+
+. gen afar=af+ar;
+
+.                         /*2008-2010 panel*/
+> drop if (eta<20 | eta>80) & anno==2008;
+(663 observations deleted)
+
+. sort nq anno;
+
+.  qui by nq: gen N=_N;
+
+.  keep if N==2;
+(6713 observations deleted)
+
+.  drop N;
+
+. sort nq anno;
+
+.  qui by nq: gen delta_cn=(cn[_n+1]-cn)/1000;
+
+. qui by nq: gen cngrw =(cn[_n+1]-cn)/cn;
+
+. drop if cngrw<-0.5 | (cngrw>2 & cngrw!=.);
+(59 observations deleted)
+
+.  drop cngrw;
+
+.                         sort nq anno;
+
+.  qui by nq: gen N=_N;
+
+.  keep if N==2;
+(59 observations deleted)
+
+.  drop N;
+
+. /************************************************************************/
+> /****                    WEALTH REGRESSIONS (TABLE 4)                ****/
+> /************************************************************************/
+> 
+> #delimit cr
+delimiter now cr
+. 
+. /*REGRESSIONS WITH EXPECTATIONS (Sample of respondents)*/
+. reg delta_cn unexp_afar exp_afar eta yrsedu* sex ncomp nperc np2 married employed pubblico self A52-A55 small Dpf /
+> *
+> */ if afar>0 & mu_R!=. & mu_rf!=. & afar<2000, r
+
+Linear regression                                      Number of obs =     410
+                                                       F( 18,   391) =    1.67
+                                                       Prob > F      =  0.0420
+                                                       R-squared     =  0.1076
+                                                       Root MSE      =  6.8696
+
+------------------------------------------------------------------------------
+             |               Robust
+    delta_cn |      Coef.   Std. Err.      t    P>|t|     [95% Conf. Interval]
+-------------+----------------------------------------------------------------
+  unexp_afar |   .0306504   .0166597     1.84   0.067    -.0021035    .0634043
+    exp_afar |   .0346934   .0163246     2.13   0.034     .0025984    .0667884
+         eta |  -.0193425   .0431125    -0.45   0.654    -.1041039    .0654188
+      yrsedu |   9.599366   10.85354     0.88   0.377    -11.73923    30.93796
+         sex |   .6360858   .6861124     0.93   0.354    -.7128452    1.985017
+       ncomp |    .019527   .4842404     0.04   0.968    -.9325136    .9715677
+       nperc |   4.452202   2.688011     1.66   0.098    -.8325613    9.736966
+         np2 |  -1.358795   .6955278    -1.95   0.051    -2.726237    .0086471
+     married |  -.3368286   1.010284    -0.33   0.739    -2.323098    1.649441
+    employed |   .5718751   1.233641     0.46   0.643    -1.853525    2.997275
+    pubblico |  -.6561697   1.202198    -0.55   0.586    -3.019751    1.707412
+     selfemp |   .8085455   1.552897     0.52   0.603    -2.244528    3.861619
+         A52 |   2.429578   1.029744     2.36   0.019     .4050514    4.454105
+         A53 |   1.951462   1.227792     1.59   0.113    -.4624383    4.365362
+         A54 |  -.5707078     1.2268    -0.47   0.642    -2.982657    1.841241
+         A55 |   3.022321   2.015653     1.50   0.135    -.9405524    6.985195
+       small |  -.0938474   .7461884    -0.13   0.900    -1.560891    1.373196
+         Dpf |  -1.748715   .8016992    -2.18   0.030    -3.324895    -.172534
+       _cons |  -2.227806   4.351856    -0.51   0.609    -10.78377    6.328159
+------------------------------------------------------------------------------
+
+. gen respondent=e(sample)
+
+. replace respondent=. if anno==2010
+(4217 real changes made, 4217 to missing)
+
+.                         
+. gen interLC1=exp_af*lc
+(8021 missing values generated)
+
+. gen interLC2=exp_ar*lc
+(7450 missing values generated)
+
+.                         
+. gen posexp1=exp_af>0
+
+. gen posexp2=exp_ar>0
+
+. gen inter11=exp_af*posexp1
+(8021 missing values generated)
+
+. gen inter12=exp_af*(1-posexp1)
+(8021 missing values generated)
+
+. gen inter21=exp_ar*posexp2
+(7450 missing values generated)
+
+. gen inter22=exp_ar*(1-posexp2)
+(7450 missing values generated)
+
+. gen interun11=unexp_af*posexp1
+(8021 missing values generated)
+
+. gen interun12=unexp_af*(1-posexp1)
+(8021 missing values generated)
+
+. gen interun21=unexp_ar*posexp2
+(7450 missing values generated)
+
+. gen interun22=unexp_ar*(1-posexp2)
+(7450 missing values generated)
+
+. 
+.                         
+.                         /*ONE: af, ar*/
+.                         reg delta_cn unexp_af unexp_ar exp_af exp_ar interLC* lc eta yrsedu* sex ncomp nperc np2 ma
+> rried employed pubblico self A52-A55 small Dpf /*
+>                         */ if afar>0 & mu_R!=. & mu_rf!=. & afar<2000, r
+
+Linear regression                                      Number of obs =     410
+                                                       F( 23,   386) =    1.34
+                                                       Prob > F      =  0.1341
+                                                       R-squared     =  0.1096
+                                                       Root MSE      =   6.906
+
+------------------------------------------------------------------------------
+             |               Robust
+    delta_cn |      Coef.   Std. Err.      t    P>|t|     [95% Conf. Interval]
+-------------+----------------------------------------------------------------
+    unexp_af |  -.0625312   .2369085    -0.26   0.792    -.5283237    .4032613
+    unexp_ar |   .0302909   .0170685     1.77   0.077     -.003268    .0638498
+      exp_af |   -.024339   .2260905    -0.11   0.914    -.4688621    .4201841
+      exp_ar |   .0339403   .0170737     1.99   0.048     .0003712    .0675095
+    interLC1 |   .6675324   .8585462     0.78   0.437     -1.02048    2.355545
+    interLC2 |   .0056461   .0227008     0.25   0.804    -.0389866    .0502787
+          lc |    .306877   1.093953     0.28   0.779    -1.843976     2.45773
+         eta |  -.0173901   .0444704    -0.39   0.696    -.1048247    .0700445
+      yrsedu |    10.1646   11.18773     0.91   0.364    -11.83193    32.16113
+         sex |   .6048879   .6898179     0.88   0.381    -.7513829    1.961159
+       ncomp |   .0478217    .497985     0.10   0.924    -.9312808    1.026924
+       nperc |    4.41022    2.71301     1.63   0.105     -.923908    9.744347
+         np2 |  -1.352926   .7009472    -1.93   0.054    -2.731078    .0252268
+     married |  -.3045403   1.017354    -0.30   0.765    -2.304789    1.695709
+    employed |   .5476053   1.260971     0.43   0.664    -1.931625    3.026836
+    pubblico |  -.7379709   1.212937    -0.61   0.543    -3.122762     1.64682
+     selfemp |   .9351961   1.617882     0.58   0.564    -2.245769    4.116161
+         A52 |   2.520657   1.065227     2.37   0.018     .4262828     4.61503
+         A53 |   1.937708   1.241243     1.56   0.119    -.5027352    4.378151
+         A54 |  -.6404002   1.256788    -0.51   0.611    -3.111407    1.830606
+         A55 |   2.949422   2.043268     1.44   0.150    -1.067905     6.96675
+       small |  -.1044726   .7574144    -0.14   0.890    -1.593647    1.384702
+         Dpf |  -1.876091   .8374285    -2.24   0.026    -3.522583   -.2295985
+       _cons |  -2.305142   4.476382    -0.51   0.607    -11.10629    6.496003
+------------------------------------------------------------------------------
+
+.                         outreg using tb_LC, se starloc(1) starlevel (10 5 1) replace /*
+>                         */ keep(unexp_af unexp_ar exp_af exp_ar interLC* lc)
+
+                                               ----------------------
+                                                           delta_cn 
+                                               ----------------------
+                                                unexp_af    -0.063  
+                                                           (0.237)  
+                                                unexp_ar    0.030*  
+                                                           (0.017)  
+                                                exp_af      -0.024  
+                                                           (0.226)  
+                                                exp_ar     0.034**  
+                                                           (0.017)  
+                                                interLC1    0.668   
+                                                           (0.859)  
+                                                interLC2    0.006   
+                                                           (0.023)  
+                                                lc          0.307   
+                                                           (1.094)  
+                                                R2           0.11   
+                                                N            410    
+                                               ----------------------
+                                           * p<0.1; ** p<0.05; *** p<0.01
+
+
+.                         
+.                         scalar def reg1=_b[unexp_af]
+
+.                         scalar def reg2=_b[unexp_ar]
+
+.                         scalar def reg3=_b[exp_af]
+
+.                         scalar def reg4=_b[exp_ar]
+
+.                         scalar def reg5=_b[interLC1]
+
+.                         cap scalar def reg6=_b[interLC2]
+
+.                         scalar def reg7=_b[lc]
+
+.                         
+.                         
+.                         /*TWO: af, ar - posivite and negative + inter*exp*/
+.                         reg delta_cn unexp_af unexp_ar inter1* inter2* eta yrsedu* sex ncomp nperc np2 married empl
+> oyed pubblico self A52-A55 small Dpf /*
+>                         */ if afar>0 & mu_R!=. & mu_rf!=. & afar<2000, r
+
+Linear regression                                      Number of obs =     410
+                                                       F( 22,   387) =    1.40
+                                                       Prob > F      =  0.1094
+                                                       R-squared     =  0.1097
+                                                       Root MSE      =  6.8966
+
+------------------------------------------------------------------------------
+             |               Robust
+    delta_cn |      Coef.   Std. Err.      t    P>|t|     [95% Conf. Interval]
+-------------+----------------------------------------------------------------
+    unexp_af |  -.1193479   .2939562    -0.41   0.685     -.697299    .4586031
+    unexp_ar |   .0302156   .0169988     1.78   0.076    -.0032059    .0636372
+     inter11 |   -.027361    .221841    -0.12   0.902    -.4635254    .4088034
+     inter12 |  -.0906387   .2890172    -0.31   0.754    -.6588792    .4776018
+     inter21 |   .0346593    .016655     2.08   0.038     .0019138    .0674049
+     inter22 |   .0208071    .022017     0.95   0.345    -.0224808     .064095
+         eta |  -.0174328   .0444664    -0.39   0.695    -.1048587     .069993
+      yrsedu |   9.519604   11.14931     0.85   0.394    -12.40121    31.44041
+         sex |   .6461537    .697204     0.93   0.355    -.7246279    2.016935
+       ncomp |   .0333274   .4966798     0.07   0.947     -.943201    1.009856
+       nperc |   4.439944    2.71545     1.64   0.103    -.8989365    9.778825
+         np2 |  -1.358574   .7014206    -1.94   0.053    -2.737646    .0204985
+     married |  -.3101448   1.014171    -0.31   0.760    -2.304119    1.683829
+    employed |   .5970402   1.246788     0.48   0.632    -1.854286    3.048367
+    pubblico |  -.6594629   1.212313    -0.54   0.587    -3.043008    1.724082
+     selfemp |   .8415068      1.646     0.51   0.609    -2.394716    4.077729
+         A52 |    2.45827   1.057171     2.33   0.021     .3797528    4.536788
+         A53 |   1.890744   1.254652     1.51   0.133    -.5760421    4.357531
+         A54 |  -.6435661   1.257074    -0.51   0.609    -3.115115    1.827983
+         A55 |   2.970706   2.031539     1.46   0.144    -1.023528     6.96494
+       small |   -.092008   .7531638    -0.12   0.903    -1.572813    1.388797
+         Dpf |  -1.834179   .8122164    -2.26   0.024    -3.431088   -.2372696
+       _cons |  -2.311005   4.462835    -0.52   0.605    -11.08544    6.463431
+------------------------------------------------------------------------------
+
+.                         outreg using tb_LC, se starloc(1) starlevel (10 5 1) merge /*
+>                         */ keep(unexp_af unexp_ar inter1* inter2*)
+
+                                          --------------------------------
+                                                      delta_cn  delta_cn 
+                                          --------------------------------
+                                           unexp_af    -0.063    -0.119  
+                                                      (0.237)   (0.294)  
+                                           unexp_ar    0.030*    0.030*  
+                                                      (0.017)   (0.017)  
+                                           exp_af      -0.024            
+                                                      (0.226)            
+                                           exp_ar     0.034**            
+                                                      (0.017)            
+                                           interLC1    0.668             
+                                                      (0.859)            
+                                           interLC2    0.006             
+                                                      (0.023)            
+                                           lc          0.307             
+                                                      (1.094)            
+                                           inter11               -0.027  
+                                                                (0.222)  
+                                           inter12               -0.091  
+                                                                (0.289)  
+                                           inter21              0.035**  
+                                                                (0.017)  
+                                           inter22               0.021   
+                                                                (0.022)  
+                                           R2           0.11      0.11   
+                                           N            410       410    
+                                          --------------------------------
+                                           * p<0.1; ** p<0.05; *** p<0.01
+
+
+.                         
+.                         scalar def reg8=_b[unexp_af]
+
+.                         scalar def reg9=_b[unexp_ar]
+
+.                         scalar def reg10=_b[inter11]
+
+.                         scalar def reg11=_b[inter12]
+
+.                         scalar def reg12=_b[inter21]
+
+.                         scalar def reg13=_b[inter22]
+
+.                         
+.                         /*THREE: af, ar - posivite and negative  + inter*exp + inter*unexp*/
+.                         reg delta_cn inter1* inter2* interun1* interun2* eta yrsedu* sex ncomp nperc np2 married em
+> ployed pubblico self A52-A55 small Dpf /*
+>                         */ if afar>0 & mu_R!=. & mu_rf!=. & afar<2000, r
+
+Linear regression                                      Number of obs =     410
+                                                       F( 24,   385) =    1.30
+                                                       Prob > F      =  0.1592
+                                                       R-squared     =  0.1117
+                                                       Root MSE      =  6.9069
+
+------------------------------------------------------------------------------
+             |               Robust
+    delta_cn |      Coef.   Std. Err.      t    P>|t|     [95% Conf. Interval]
+-------------+----------------------------------------------------------------
+     inter11 |  -.0543767   .2147581    -0.25   0.800    -.4766223    .3678689
+     inter12 |   .4879231   .9024389     0.54   0.589    -1.286403    2.262249
+     inter21 |   .0343721    .016557     2.08   0.039     .0018186    .0669255
+     inter22 |   .1042627    .190148     0.55   0.584    -.2695957    .4781211
+   interun11 |  -.1625159   .2960916    -0.55   0.583    -.7446748    .4196431
+   interun12 |    .457772   .9041593     0.51   0.613    -1.319936     2.23548
+   interun21 |   .0296869   .0168804     1.76   0.079    -.0035024    .0628762
+   interun22 |   .1149202    .199975     0.57   0.566    -.2782596    .5080999
+         eta |  -.0191324   .0441019    -0.43   0.665    -.1058431    .0675782
+      yrsedu |    8.09509    11.0265     0.73   0.463    -13.58461    29.77479
+         sex |     .63242   .6954562     0.91   0.364    -.7349476    1.999788
+       ncomp |   .0371203   .5002632     0.07   0.941    -.9464696     1.02071
+       nperc |   4.387058   2.740327     1.60   0.110    -1.000821    9.774937
+         np2 |  -1.347804   .7079069    -1.90   0.058    -2.739652    .0440432
+     married |   -.298665   1.032222    -0.29   0.772    -2.328163    1.730833
+    employed |   .6343007   1.254405     0.51   0.613    -1.832042    3.100643
+    pubblico |   -.678004   1.218681    -0.56   0.578    -3.074108      1.7181
+     selfemp |   .8992224   1.651064     0.54   0.586    -2.347009    4.145454
+         A52 |   2.445225   1.061898     2.30   0.022     .3573799    4.533069
+         A53 |   1.852575   1.257233     1.47   0.141    -.6193261    4.324476
+         A54 |   -.560814   1.274395    -0.44   0.660     -3.06646    1.944832
+         A55 |   2.980524   2.038156     1.46   0.144    -1.026786    6.987834
+       small |  -.0588985   .7556954    -0.08   0.938    -1.544705    1.426908
+         Dpf |  -1.909879   .8193222    -2.33   0.020    -3.520785   -.2989728
+       _cons |   -2.11967   4.458047    -0.48   0.635    -10.88484    6.645496
+------------------------------------------------------------------------------
+
+.                         outreg using tb_LC, se starloc(1) starlevel (10 5 1) merge /*
+>                         */ keep(inter1* inter2* interun*)
+
+                                     -------------------------------------------
+                                                  delta_cn  delta_cn  delta_cn 
+                                     -------------------------------------------
+                                      unexp_af     -0.063    -0.119            
+                                                  (0.237)   (0.294)            
+                                      unexp_ar     0.030*    0.030*            
+                                                  (0.017)   (0.017)            
+                                      exp_af       -0.024                      
+                                                  (0.226)                      
+                                      exp_ar      0.034**                      
+                                                  (0.017)                      
+                                      interLC1     0.668                       
+                                                  (0.859)                      
+                                      interLC2     0.006                       
+                                                  (0.023)                      
+                                      lc           0.307                       
+                                                  (1.094)                      
+                                      inter11                -0.027    -0.054  
+                                                            (0.222)   (0.215)  
+                                      inter12                -0.091    0.488   
+                                                            (0.289)   (0.902)  
+                                      inter21               0.035**   0.034**  
+                                                            (0.017)   (0.017)  
+                                      inter22                0.021     0.104   
+                                                            (0.022)   (0.190)  
+                                      interun11                        -0.163  
+                                                                      (0.296)  
+                                      interun12                        0.458   
+                                                                      (0.904)  
+                                      interun21                        0.030*  
+                                                                      (0.017)  
+                                      interun22                        0.115   
+                                                                      (0.200)  
+                                      R2            0.11      0.11      0.11   
+                                      N             410       410       410    
+                                     -------------------------------------------
+                                           * p<0.1; ** p<0.05; *** p<0.01
+
+
+.                         
+.                         scalar def reg14=_b[inter11]
+
+.                         scalar def reg15=_b[inter12]
+
+.                         scalar def reg16=_b[inter21]
+
+.                         scalar def reg17=_b[inter22]
+
+.                         scalar def reg18=_b[interun11]
+
+.                         scalar def reg19=_b[interun12]
+
+.                         scalar def reg20=_b[interun21]
+
+.                         scalar def reg21=_b[interun22]
+
+.                                                 
+.                 /*FOUR: af, ar, selection*/
+.                         /*THIS IS THE REGRESSION THAT USES ONLY RESPONDENTS BUT CORRECTS FOR SELECTION INTO THAT SA
+> MPLE*/
+.                         heckman delta_cn unexp_af unexp_ar exp_af exp_ar interLC* lc eta yrsedu* sex ncomp nperc np
+> 2 married employed pubblico self A52-A55 small Dpf, ///
+>                         select(respondent=/*unexp_afar exp_afar*/ lc eta yrsedu* sex ncomp nperc np2 married employ
+> ed pubblico self A52-A55 small Dpf ///
+>                         lowcomp verored klima) two
+
+Heckman selection model -- two-step estimates   Number of obs      =      4217
+(regression model with sample selection)        Censored obs       =      3807
+                                                Uncensored obs     =       410
+
+                                                Wald chi2(23)      =     49.64
+                                                Prob > chi2        =    0.0010
+
+------------------------------------------------------------------------------
+             |      Coef.   Std. Err.      z    P>|z|     [95% Conf. Interval]
+-------------+----------------------------------------------------------------
+delta_cn     |
+    unexp_af |  -.0725453   .2730504    -0.27   0.790    -.6077143    .4626237
+    unexp_ar |   .0301143   .0111175     2.71   0.007     .0083243    .0519043
+      exp_af |  -.0334445   .2624406    -0.13   0.899    -.5478187    .4809296
+      exp_ar |    .033774   .0114672     2.95   0.003     .0112987    .0562493
+    interLC1 |   .7152418   1.450972     0.49   0.622    -2.128611    3.559095
+    interLC2 |   .0056216   .0235111     0.24   0.811    -.0404593    .0517024
+          lc |   .3188157   1.655364     0.19   0.847    -2.925638     3.56327
+         eta |   -.020476   .0409649    -0.50   0.617    -.1007658    .0598137
+      yrsedu |   14.36871   15.66244     0.92   0.359    -16.32912    45.06654
+         sex |   .7887732   .9967862     0.79   0.429    -1.164892    2.742438
+       ncomp |   .0881338    .456432     0.19   0.847    -.8064564    .9827239
+       nperc |    4.80654   2.276948     2.11   0.035     .3438047    9.269276
+         np2 |  -1.427737    .502621    -2.84   0.005    -2.412856   -.4426177
+     married |  -.3274264   1.019034    -0.32   0.748    -2.324695    1.669843
+    employed |   .4509115   1.186521     0.38   0.704    -1.874626    2.776449
+    pubblico |  -.6680225    1.15134    -0.58   0.562    -2.924607    1.588562
+     selfemp |   .9089681   1.293105     0.70   0.482    -1.625471    3.443407
+         A52 |   1.827366   2.244332     0.81   0.416    -2.571444    6.226176
+         A53 |   1.411117   1.821803     0.77   0.439    -2.159551    4.981786
+         A54 |  -1.481104    2.72599    -0.54   0.587    -6.823945    3.861737
+         A55 |    1.57429   4.802774     0.33   0.743    -7.838974    10.98755
+       small |   .0644894   .8762715     0.07   0.941    -1.652971     1.78195
+         Dpf |  -1.902688   .7780557    -2.45   0.014    -3.427649   -.3777268
+       _cons |   -4.69358   7.819251    -0.60   0.548    -20.01903    10.63187
+-------------+----------------------------------------------------------------
+respondent   |
+          lc |   .0625409   .1175048     0.53   0.595    -.1677642    .2928459
+         eta |  -.0036612   .0032688    -1.12   0.263     -.010068    .0027456
+      yrsedu |   5.467411   .7784416     7.02   0.000     3.941693    6.993128
+         sex |   .2310802   .0706261     3.27   0.001     .0926556    .3695049
+       ncomp |   .0444694   .0358544     1.24   0.215    -.0258039    .1147426
+       nperc |   .4886501   .1670784     2.92   0.003     .1611825    .8161177
+         np2 |  -.0964513   .0382672    -2.52   0.012    -.1714537   -.0214489
+     married |   -.025845   .0884885    -0.29   0.770    -.1992793    .1475893
+    employed |  -.1350811   .0954217    -1.42   0.157    -.3221042    .0519419
+    pubblico |   .1033243   .0981927     1.05   0.293    -.0891298    .2957784
+     selfemp |  -.0718123   .1097719    -0.65   0.513    -.2869613    .1433367
+         A52 |    -.75964   .0811537    -9.36   0.000    -.9186983   -.6005818
+         A53 |   -.552379   .0799691    -6.91   0.000    -.7091155   -.3956424
+         A54 |  -.9259734   .0913625   -10.14   0.000    -1.105041   -.7469062
+         A55 |  -1.437425   .1619016    -8.88   0.000    -1.754746   -1.120103
+       small |   .2078123   .0597735     3.48   0.001     .0906583    .3249662
+         Dpf |   .0074758   .0668427     0.11   0.911    -.1235335    .1384852
+     lowcomp |   .2958043    .078038     3.79   0.000     .1428527    .4487559
+     verored |  -.0217545   .0257726    -0.84   0.399    -.0722679    .0287589
+       klima |   .1161584   .0312684     3.71   0.000     .0548734    .1774434
+       _cons |  -2.857546   .3780845    -7.56   0.000    -3.598578   -2.116514
+-------------+----------------------------------------------------------------
+mills        |
+      lambda |   1.099601   3.204412     0.34   0.731    -5.180932    7.380133
+-------------+----------------------------------------------------------------
+         rho |    0.16240
+       sigma |  6.7711052
+      lambda |  1.0996005   3.204412
+------------------------------------------------------------------------------
+
+.                         outreg using tb_LC, se starloc(1) starlevel (10 5 1) merge /*
+>                         */ keep(unexp_af unexp_ar exp_af exp_ar interLC* lc)
+(note: tables being merged have different numbers of rtitle columns)
+
+                               -------------------------------------------------------
+                                              delta_cn  delta_cn  delta_cn           
+                               -------------------------------------------------------
+                                  unexp_af     -0.063    -0.119              -0.073  
+                                              (0.237)   (0.294)             (0.273)  
+                                  unexp_ar     0.030*    0.030*             0.030*** 
+                                              (0.017)   (0.017)             (0.011)  
+                                  exp_af       -0.024                        -0.033  
+                                              (0.226)                       (0.262)  
+                                  exp_ar      0.034**                       0.034*** 
+                                              (0.017)                       (0.011)  
+                                  interLC1     0.668                         0.715   
+                                              (0.859)                       (1.451)  
+                                  interLC2     0.006                         0.006   
+                                              (0.023)                       (0.024)  
+                                  lc           0.307                         0.063   
+                                              (1.094)                       (0.118)  
+                                  inter11                -0.027    -0.054            
+                                                        (0.222)   (0.215)            
+                                  inter12                -0.091    0.488             
+                                                        (0.289)   (0.902)            
+                                  inter21               0.035**   0.034**            
+                                                        (0.017)   (0.017)            
+                                  inter22                0.021     0.104             
+                                                        (0.022)   (0.190)            
+                                  interun11                        -0.163            
+                                                                  (0.296)            
+                                  interun12                        0.458             
+                                                                  (0.904)            
+                                  interun21                        0.030*            
+                                                                  (0.017)            
+                                  interun22                        0.115             
+                                                                  (0.200)            
+                                  R2            0.11      0.11      0.11             
+                                  N             410       410       410      4,217   
+                               -------------------------------------------------------
+                                           * p<0.1; ** p<0.05; *** p<0.01
+
+
+.                         
+.                         scalar def reg22=_b[unexp_af]
+
+.                         scalar def reg23=_b[unexp_ar]
+
+.                         scalar def reg24=_b[exp_af]
+
+.                         scalar def reg25=_b[exp_ar]
+
+.                         scalar def reg26=_b[interLC1]
+
+.                         scalar def reg27=_b[interLC2]
+
+.                         scalar def reg28=_b[lc]
+
+.                         
+.                         /*FIVE: af, ar, positive - negative, selection*/
+.                         heckman delta_cn unexp_af unexp_ar inter1* inter2* eta yrsedu* sex ncomp nperc np2 married 
+> employed pubblico self A52-A55 small Dpf, ///
+>                         select(respondent=/*unexp_afar exp_afar*/ eta yrsedu* sex ncomp nperc np2 married employed 
+> pubblico self A52-A55 small Dpf ///
+>                         lowcomp verored klima) two
+
+Heckman selection model -- two-step estimates   Number of obs      =      4217
+(regression model with sample selection)        Censored obs       =      3807
+                                                Uncensored obs     =       410
+
+                                                Wald chi2(22)      =     49.69
+                                                Prob > chi2        =    0.0006
+
+------------------------------------------------------------------------------
+             |      Coef.   Std. Err.      z    P>|z|     [95% Conf. Interval]
+-------------+----------------------------------------------------------------
+delta_cn     |
+    unexp_af |  -.1305743   .3019822    -0.43   0.665    -.7224485    .4612999
+    unexp_ar |    .030008   .0110973     2.70   0.007     .0082577    .0517582
+     inter11 |  -.0357404   .2621664    -0.14   0.892     -.549577    .4780963
+     inter12 |   -.101307    .302679    -0.33   0.738    -.6945469    .4919329
+     inter21 |   .0344725    .011356     3.04   0.002     .0122152    .0567297
+     inter22 |    .020578     .03033     0.68   0.497    -.0388677    .0800237
+         eta |  -.0203693    .040618    -0.50   0.616    -.0999791    .0592406
+      yrsedu |   13.61612   15.63068     0.87   0.384    -17.01944    44.25169
+         sex |      .8276   1.001907     0.83   0.409    -1.136101    2.791301
+       ncomp |    .072584   .4558714     0.16   0.873    -.8209074    .9660755
+       nperc |   4.829353   2.277145     2.12   0.034     .3662303    9.292476
+         np2 |  -1.432363   .5029058    -2.85   0.004     -2.41804   -.4466858
+     married |  -.3312272   1.021063    -0.32   0.746    -2.332473    1.670019
+    employed |   .5070871   1.173701     0.43   0.666    -1.793326      2.8075
+    pubblico |  -.5911475   1.143856    -0.52   0.605    -2.833064    1.650769
+     selfemp |   .8134533    1.29838     0.63   0.531    -1.731324    3.358231
+         A52 |   1.776937   2.248091     0.79   0.429    -2.629241    6.183114
+         A53 |   1.372044   1.829175     0.75   0.453    -2.213074    4.957161
+         A54 |  -1.463008   2.704692    -0.54   0.589    -6.764108    3.838092
+         A55 |   1.626438   4.785412     0.34   0.734    -7.752798    11.00567
+       small |   .0778059   .8805034     0.09   0.930    -1.647949    1.803561
+         Dpf |  -1.859809   .7681625    -2.42   0.015     -3.36538   -.3542385
+       _cons |   -4.66246   7.823764    -0.60   0.551    -19.99676    10.67184
+-------------+----------------------------------------------------------------
+respondent   |
+         eta |  -.0037757   .0032617    -1.16   0.247    -.0101685     .002617
+      yrsedu |   5.453673   .7778335     7.01   0.000     3.929147    6.978199
+         sex |   .2304977   .0706097     3.26   0.001     .0921052    .3688901
+       ncomp |   .0447366   .0358559     1.25   0.212    -.0255397    .1150128
+       nperc |    .487407   .1670576     2.92   0.004     .1599802    .8148339
+         np2 |  -.0962323   .0382612    -2.52   0.012    -.1712228   -.0212418
+     married |  -.0255422   .0884887    -0.29   0.773    -.1989768    .1478925
+    employed |  -.1365863    .095406    -1.43   0.152    -.3235786     .050406
+    pubblico |   .1034926   .0981588     1.05   0.292    -.0888952    .2958803
+     selfemp |   -.072878   .1097722    -0.66   0.507    -.2880276    .1422715
+         A52 |  -.7650477   .0805088    -9.50   0.000     -.922842   -.6072534
+         A53 |  -.5563093   .0795953    -6.99   0.000    -.7123132   -.4003054
+         A54 |  -.9300174   .0910521   -10.21   0.000    -1.108476   -.7515584
+         A55 |  -1.443284   .1616098    -8.93   0.000    -1.760033   -1.126534
+       small |   .2082193   .0597656     3.48   0.000     .0910808    .3253577
+         Dpf |   .0121419   .0662411     0.18   0.855    -.1176882     .141972
+     lowcomp |   .2942098   .0780016     3.77   0.000     .1413294    .4470902
+     verored |  -.0207924   .0257529    -0.81   0.419    -.0712673    .0296824
+       klima |   .1148759   .0312262     3.68   0.000     .0536736    .1760782
+       _cons |  -2.839077   .3765329    -7.54   0.000    -3.577068   -2.101086
+-------------+----------------------------------------------------------------
+mills        |
+      lambda |   1.078804   3.202113     0.34   0.736    -5.197221     7.35483
+-------------+----------------------------------------------------------------
+         rho |    0.15940
+       sigma |   6.768012
+      lambda |  1.0788045   3.202113
+------------------------------------------------------------------------------
+
+.                         outreg using tb_LC, se starloc(1) starlevel (10 5 1) merge /*
+>                         */ keep(unexp_af unexp_ar inter1* inter2*)
+(note: tables being merged have different numbers of rtitle columns)
+
+                    ----------------------------------------------------------------------------
+                                   delta_cn  delta_cn  delta_cn            delta_cn respondent 
+                    ----------------------------------------------------------------------------
+                       unexp_af     -0.063    -0.119              -0.073         -0.131        
+                                   (0.237)   (0.294)             (0.273)         (0.302)       
+                       unexp_ar     0.030*    0.030*             0.030***       0.030***       
+                                   (0.017)   (0.017)             (0.011)         (0.011)       
+                       exp_af       -0.024                        -0.033                       
+                                   (0.226)                       (0.262)                       
+                       exp_ar      0.034**                       0.034***                      
+                                   (0.017)                       (0.011)                       
+                       interLC1     0.668                         0.715                        
+                                   (0.859)                       (1.451)                       
+                       interLC2     0.006                         0.006                        
+                                   (0.023)                       (0.024)                       
+                       lc           0.307                         0.063                        
+                                   (1.094)                       (0.118)                       
+                       inter11                -0.027    -0.054                   -0.036        
+                                             (0.222)   (0.215)                   (0.262)       
+                       inter12                -0.091    0.488                    -0.101        
+                                             (0.289)   (0.902)                   (0.303)       
+                       inter21               0.035**   0.034**                  0.034***       
+                                             (0.017)   (0.017)                   (0.011)       
+                       inter22                0.021     0.104                     0.021        
+                                             (0.022)   (0.190)                   (0.030)       
+                       interun11                        -0.163                                 
+                                                       (0.296)                                 
+                       interun12                        0.458                                  
+                                                       (0.904)                                 
+                       interun21                        0.030*                                 
+                                                       (0.017)                                 
+                       interun22                        0.115                                  
+                                                       (0.200)                                 
+                       R2            0.11      0.11      0.11                                  
+                       N             410       410       410      4,217           4,217        
+                    ----------------------------------------------------------------------------
+                                           * p<0.1; ** p<0.05; *** p<0.01
+
+
+.                         
+.                         scalar def reg29=_b[unexp_af]
+
+.                         scalar def reg30=_b[unexp_ar]
+
+.                         scalar def reg31=_b[inter11]
+
+.                         scalar def reg32=_b[inter12]
+
+.                         scalar def reg33=_b[inter21]
+
+.                         scalar def reg34=_b[inter22]
+
+.                         
+.                         /*SIX: af, ar, positive - negative, selection*/
+.                         heckman delta_cn inter1* inter2* interun1* interun2* eta yrsedu* sex ncomp nperc np2 marrie
+> d employed pubblico self A52-A55 small Dpf, ///
+>                         select(respondent= eta yrsedu* sex ncomp nperc np2 married employed pubblico self A52-A55 s
+> mall Dpf ///
+>                         lowcomp verored klima) two
+
+Heckman selection model -- two-step estimates   Number of obs      =      4217
+(regression model with sample selection)        Censored obs       =      3807
+                                                Uncensored obs     =       410
+
+                                                Wald chi2(24)      =     50.73
+                                                Prob > chi2        =    0.0011
+
+------------------------------------------------------------------------------
+             |      Coef.   Std. Err.      z    P>|z|     [95% Conf. Interval]
+-------------+----------------------------------------------------------------
+delta_cn     |
+     inter11 |  -.0595394   .2643421    -0.23   0.822    -.5776404    .4585615
+     inter12 |   .4611396   .8724532     0.53   0.597    -1.248837    2.171116
+     inter21 |   .0342434   .0113491     3.02   0.003     .0119996    .0564871
+     inter22 |   .1026208   .1355128     0.76   0.449    -.1629794    .3682211
+   interun11 |  -.1691014   .3092012    -0.55   0.584    -.7751247    .4369218
+   interun12 |   .4306338   .8703785     0.49   0.621    -1.275277    2.136544
+   interun21 |   .0295485   .0111025     2.66   0.008      .007788    .0513091
+   interun22 |    .113266   .1339296     0.85   0.398    -.1492311    .3757631
+         eta |  -.0211901   .0406038    -0.52   0.602    -.1007722    .0583919
+      yrsedu |   11.09887   15.90177     0.70   0.485    -20.06802    42.26575
+         sex |   .7635251   1.002379     0.76   0.446    -1.201101    2.728151
+       ncomp |   .0650212   .4571587     0.14   0.887    -.8309934    .9610358
+       nperc |   4.669847   2.279278     2.05   0.040     .2025446    9.137149
+         np2 |  -1.401395   .5029636    -2.79   0.005    -2.387186   -.4156048
+     married |  -.3134975   1.023164    -0.31   0.759    -2.318862    1.691867
+    employed |   .5682244   1.173247     0.48   0.628    -1.731298    2.867747
+    pubblico |  -.6284339   1.142219    -0.55   0.582    -2.867143    1.610275
+     selfemp |   .8775269   1.297338     0.68   0.499     -1.66521    3.420263
+         A52 |   1.953596   2.252172     0.87   0.386    -2.460581    6.367773
+         A53 |   1.478814   1.830413     0.81   0.419    -2.108729    5.066357
+         A54 |   -1.15456   2.720314    -0.42   0.671    -6.486277    4.177157
+         A55 |   2.009425   4.796266     0.42   0.675    -7.391083    11.40993
+       small |   .0627787   .8786762     0.07   0.943    -1.659395    1.784952
+         Dpf |  -1.926349   .7698398    -2.50   0.012    -3.435207   -.4174902
+       _cons |  -3.823894   7.866643    -0.49   0.627    -19.24223    11.59444
+-------------+----------------------------------------------------------------
+respondent   |
+         eta |  -.0037757   .0032617    -1.16   0.247    -.0101685     .002617
+      yrsedu |   5.453673   .7778335     7.01   0.000     3.929147    6.978199
+         sex |   .2304977   .0706097     3.26   0.001     .0921052    .3688901
+       ncomp |   .0447366   .0358559     1.25   0.212    -.0255397    .1150128
+       nperc |    .487407   .1670576     2.92   0.004     .1599802    .8148339
+         np2 |  -.0962323   .0382612    -2.52   0.012    -.1712228   -.0212418
+     married |  -.0255422   .0884887    -0.29   0.773    -.1989768    .1478925
+    employed |  -.1365863    .095406    -1.43   0.152    -.3235786     .050406
+    pubblico |   .1034926   .0981588     1.05   0.292    -.0888952    .2958803
+     selfemp |   -.072878   .1097722    -0.66   0.507    -.2880276    .1422715
+         A52 |  -.7650477   .0805088    -9.50   0.000     -.922842   -.6072534
+         A53 |  -.5563093   .0795953    -6.99   0.000    -.7123132   -.4003054
+         A54 |  -.9300174   .0910521   -10.21   0.000    -1.108476   -.7515584
+         A55 |  -1.443284   .1616098    -8.93   0.000    -1.760033   -1.126534
+       small |   .2082193   .0597656     3.48   0.000     .0910808    .3253577
+         Dpf |   .0121419   .0662411     0.18   0.855    -.1176882     .141972
+     lowcomp |   .2942098   .0780016     3.77   0.000     .1413294    .4470902
+     verored |  -.0207924   .0257529    -0.81   0.419    -.0712673    .0296824
+       klima |   .1148759   .0312262     3.68   0.000     .0536736    .1760782
+       _cons |  -2.839077   .3765329    -7.54   0.000    -3.577068   -2.101086
+-------------+----------------------------------------------------------------
+mills        |
+      lambda |   .7791558   3.213295     0.24   0.808    -5.518787    7.077098
+-------------+----------------------------------------------------------------
+         rho |    0.11580
+       sigma |  6.7284403
+      lambda |  .77915582   3.213295
+------------------------------------------------------------------------------
+
+.                         outreg using tb_LC, se starloc(1) starlevel (10 5 1) merge /*
+>                         */ keep(inter1* inter2* interun*)
+(note: tables being merged have different numbers of rtitle columns)
+
+          -------------------------------------------------------------------------------------------------
+                         delta_cn  delta_cn  delta_cn            delta_cn respondent  delta_cn respondent 
+          -------------------------------------------------------------------------------------------------
+             unexp_af     -0.063    -0.119              -0.073         -0.131                             
+                         (0.237)   (0.294)             (0.273)         (0.302)                            
+             unexp_ar     0.030*    0.030*             0.030***       0.030***                            
+                         (0.017)   (0.017)             (0.011)         (0.011)                            
+             exp_af       -0.024                        -0.033                                            
+                         (0.226)                       (0.262)                                            
+             exp_ar      0.034**                       0.034***                                           
+                         (0.017)                       (0.011)                                            
+             interLC1     0.668                         0.715                                             
+                         (0.859)                       (1.451)                                            
+             interLC2     0.006                         0.006                                             
+                         (0.023)                       (0.024)                                            
+             lc           0.307                         0.063                                             
+                         (1.094)                       (0.118)                                            
+             inter11                -0.027    -0.054                   -0.036               -0.060        
+                                   (0.222)   (0.215)                   (0.262)              (0.264)       
+             inter12                -0.091    0.488                    -0.101                0.461        
+                                   (0.289)   (0.902)                   (0.303)              (0.872)       
+             inter21               0.035**   0.034**                  0.034***             0.034***       
+                                   (0.017)   (0.017)                   (0.011)              (0.011)       
+             inter22                0.021     0.104                     0.021                0.103        
+                                   (0.022)   (0.190)                   (0.030)              (0.136)       
+             interun11                        -0.163                                        -0.169        
+                                             (0.296)                                        (0.309)       
+             interun12                        0.458                                          0.431        
+                                             (0.904)                                        (0.870)       
+             interun21                        0.030*                                       0.030***       
+                                             (0.017)                                        (0.011)       
+             interun22                        0.115                                          0.113        
+                                             (0.200)                                        (0.134)       
+             R2            0.11      0.11      0.11                                                       
+             N             410       410       410      4,217           4,217                4,217        
+          -------------------------------------------------------------------------------------------------
+                                           * p<0.1; ** p<0.05; *** p<0.01
+
+
+.                         
+.                         scalar def reg35=_b[inter11]
+
+.                         scalar def reg36=_b[inter12]
+
+.                         scalar def reg37=_b[inter21]
+
+.                         scalar def reg38=_b[inter22]
+
+.                         scalar def reg39=_b[interun11]
+
+.                         scalar def reg40=_b[interun12]
+
+.                         scalar def reg41=_b[interun21]
+
+.                         scalar def reg42=_b[interun22]
+
+.                 
+. 
+. #delimit;       
+delimiter now ;
+. matrix define true=     reg1\reg2\reg3\reg4\reg5\reg6\reg7\reg8\reg9\reg10\reg11\reg12\reg13\reg14\reg15\
+>         /*K x 1 matrix*/                reg16\reg17\reg18\reg19\reg20\reg21\reg22\reg23\reg24\reg25\reg26\reg27\reg
+> 28\reg29\reg30\
+>                                                         reg31\reg32\reg33\reg34\reg35\reg36\reg37\reg38\reg39\reg40
+> \reg41\reg42;
+
+. #delimit cr
+delimiter now cr
+. svmat true
+
+. keep true
+
+. keep if true!=.
+(8392 observations deleted)
+
+. gen repl=0      
+
+. gen p=1
+
+. sort repl
+
+. qui by repl:replace p=sum(p)
+
+. ren true coeff
+
+. reshape wide coeff,i(repl) j(p)
+(note: j = 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 3
+> 9 40 41 42)
+
+Data                               long   ->   wide
+-----------------------------------------------------------------------------
+Number of obs.                       42   ->       1
+Number of variables                   3   ->      43
+j variable (42 values)                p   ->   (dropped)
+xij variables:
+                                  coeff   ->   coeff1 coeff2 ... coeff42
+-----------------------------------------------------------------------------
+
+. compress
+repl was float now byte
+
+. save true,replace               /*TRUE COEFFICIENT ESTIMATES*/
+(note: file true.dta not found)
+file true.dta saved
+
+. */
+. 
+. u rep,clear
+
+. append using true
+
+. erase true.dta
+
+. 
+. cap program drop doit
+
+. program def doit
+  1.           local i=1
+  2.         while `i' < 43 {
+  3.                 su coeff`i' if repl==0          /*True estimate*/
+  4.                 scalar def true`i'=r(mean)
+  5.                 su coeff`i' if repl!=0
+  6.                 scalar def sd`i'=r(sd)
+  7.                 scalar def t`i'=(true`i'/sd`i')
+  8.                 gen tb`i'=(coeff`i'-true`i')/sd`i'
+  9.                 count if tb`i'>=t`i'            /*Mi sembra che sia sempre 0!!!*/
+ 10.                 scalar def p`i'_up=(r(N)/(_N))
+ 11.                 count if tb`i'<=t`i'
+ 12.                 scalar def p`i'_lo=(r(N)/(_N))
+ 13.                 if p`i'_lo<p`i'_up      {
+ 14.                                 scalar def pvalue`i'=2*p`i'_lo
+ 15.                                                 }
+ 16.                 if p`i'_lo>p`i'_up      {
+ 17.                                 scalar def pvalue`i'=2*p`i'_up
+ 18.                                                 }
+ 19.                 scalar drop true`i' sd`i' t`i' p`i'_lo p`i'_up 
+ 20.                 drop tb`i'
+ 21.         local i=`i'+1
+ 22.                 }
+ 23. end
+
+. qui doit
+
+. 
+. #delimit;
+delimiter now ;
+. scalar drop     reg1 reg2 reg3 reg4 reg5 reg6 reg7 reg8 reg9 reg10 reg11 reg12 reg13 reg14 reg15 reg16 reg17 reg18 
+> reg19 reg20 
+>                         reg21 reg22 reg23 reg24 reg25 reg26 reg27 reg28 reg29 reg30 reg31 reg32 reg33 reg34 reg35 r
+> eg36 reg37 reg38 reg39 reg40
+>                         reg41 reg42;
+
+.         #delimit cr
+delimiter now cr
+. scalar list 
+  pvalue42 =  .21024259
+  pvalue41 =  .05929919
+  pvalue40 =  .46361186
+  pvalue39 =  .37735849
+  pvalue38 =  .29649596
+  pvalue37 =  .02156334
+  pvalue36 =  .45822102
+  pvalue35 =  .62533693
+  pvalue34 =   .7115903
+  pvalue33 =  .01617251
+  pvalue32 =  .47439353
+  pvalue31 =  .74393531
+  pvalue30 =  .02695418
+  pvalue29 =    .393531
+  pvalue28 =  .81940701
+  pvalue27 =  .66846361
+  pvalue26 =  .41509434
+  pvalue25 =  .01617251
+  pvalue24 =  .67385445
+  pvalue23 =  .02156334
+  pvalue22 =  .44204852
+  pvalue21 =  .22102426
+  pvalue20 =  .05929919
+  pvalue19 =  .44204852
+  pvalue18 =  .38814016
+  pvalue17 =  .30727763
+  pvalue16 =  .02156334
+  pvalue15 =  .39892183
+  pvalue14 =  .64690027
+  pvalue13 =  .69541779
+  pvalue12 =  .01617251
+  pvalue11 =  .54447439
+  pvalue10 =  .79784367
+   pvalue9 =  .02695418
+   pvalue8 =  .44204852
+   pvalue7 =  .80862534
+   pvalue6 =  .64150943
+   pvalue5 =  .47439353
+   pvalue4 =  .01617251
+   pvalue3 =   .7277628
+   pvalue2 =  .02156334
+   pvalue1 =  .52830189
+
+. save,replace
+file rep.dta saved
+
+. 
+. log close
+      name:  <unnamed>
+       log:  C:\Data\Expect\WE\Revision_final\ForPublication\tableres5.log
+  log type:  text
+ closed on:  25 Apr 2016, 14:49:45
+---------------------------------------------------------------------------------------------------------------------
